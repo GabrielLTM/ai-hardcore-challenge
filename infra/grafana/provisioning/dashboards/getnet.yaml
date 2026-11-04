@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: Getnet atendimento
+    type: file
+    folder: Getnet
+    allowUiUpdates: false
+    options:
+      path: /otel-lgtm/getnet-dashboards
+      foldersFromFilesStructure: false

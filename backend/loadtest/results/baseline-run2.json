@@ -1,0 +1,288 @@
+{
+  "when_utc": "2026-11-04T02:36:02Z",
+  "machine": {
+    "os": "macOS-26.5.1-arm64-arm-64bit",
+    "cpu": "Apple M1 Pro",
+    "cores": 8,
+    "ram_gib": 16.0,
+    "python": "3.12.13",
+    "docker_vm": "4 CPUs|4109201408 bytes|Docker 29.6.1",
+    "mongo_image": "mongodb/mongodb-atlas-local:8.0.4",
+    "packages": {
+      "fastapi": "0.162.0",
+      "uvicorn": "0.54.0",
+      "pymongo": "4.19.0",
+      "httpx": "0.28.1",
+      "uvloop": "0.23.0"
+    }
+  },
+  "database": "getnet_loadtest_20261104023601",
+  "fake_model": {
+    "first_token_ms": 400.0,
+    "delta_ms": 30.0,
+    "deltas": 40
+  },
+  "run_defaults": {
+    "run_max_depth": 3,
+    "run_max_delegations": 8,
+    "run_max_tool_calls": 12,
+    "run_timeout_seconds": 120.0,
+    "run_max_output_tokens": 16000,
+    "max_active_runs": 20,
+    "chat_wait_seconds": 90.0,
+    "cancel_wait_seconds": 2.0,
+    "run_lease_seconds": 30.0,
+    "run_heartbeat_seconds": 3.0,
+    "maintenance_interval_seconds": 10.0,
+    "sse_heartbeat_seconds": 15.0,
+    "sse_poll_seconds": 0.5,
+    "event_retention_days": 7
+  },
+  "scenarios": {
+    "cap200/50_clients": {
+      "env": {
+        "MAX_ACTIVE_RUNS": "200"
+      },
+      "clients": 50,
+      "runs_per_client": 6,
+      "attempts": 300,
+      "outcomes": {
+        "completed": 300
+      },
+      "error_rate": 0.0,
+      "rejected_429_rate": 0.0,
+      "wall_s": 28.73,
+      "load_generator_cpu_pct": 7.9,
+      "completed_per_s": 10.44,
+      "events_total": 6600,
+      "events_per_s": 229.7,
+      "events_per_run": 22.0,
+      "stream_seconds": 1404.8,
+      "latency_s": {
+        "post_202": {
+          "n": 300,
+          "p50": 0.029,
+          "p95": 0.393,
+          "p99": 0.694,
+          "max": 0.704
+        },
+        "first_event": {
+          "n": 300,
+          "p50": 0.549,
+          "p95": 0.673,
+          "p99": 1.204,
+          "max": 1.217
+        },
+        "first_delta": {
+          "n": 300,
+          "p50": 3.112,
+          "p95": 3.774,
+          "p99": 3.889,
+          "max": 3.911
+        },
+        "done": {
+          "n": 300,
+          "p50": 4.639,
+          "p95": 4.924,
+          "p99": 5.291,
+          "max": 5.338
+        }
+      },
+      "api_cpu_pct_avg": 37.9,
+      "mongo_ops_per_s": {
+        "insert": 271.5,
+        "query": 413.6,
+        "update": 94.0,
+        "getmore": 2.1,
+        "command": 496.7
+      },
+      "mongo_ops_per_completed_run": {
+        "insert": 26.0,
+        "query": 39.6,
+        "update": 9.0,
+        "getmore": 0.2,
+        "command": 47.6
+      },
+      "mongo_reads_per_stream_second": 8.5,
+      "api_rss_mb_max": 94.1,
+      "mongo_cpu_pct_avg": 83.1,
+      "mongo_cpu_pct_max": 146.8,
+      "mongo_mem_mib_max": 1882.1
+    },
+    "cap200/100_clients": {
+      "env": {
+        "MAX_ACTIVE_RUNS": "200"
+      },
+      "clients": 100,
+      "runs_per_client": 4,
+      "attempts": 400,
+      "outcomes": {
+        "completed": 400
+      },
+      "error_rate": 0.0,
+      "rejected_429_rate": 0.0,
+      "wall_s": 23.19,
+      "load_generator_cpu_pct": 22.2,
+      "completed_per_s": 17.25,
+      "events_total": 8800,
+      "events_per_s": 379.5,
+      "events_per_run": 22.0,
+      "stream_seconds": 2105.9,
+      "latency_s": {
+        "post_202": {
+          "n": 400,
+          "p50": 0.044,
+          "p95": 2.876,
+          "p99": 3.599,
+          "max": 3.725
+        },
+        "first_event": {
+          "n": 400,
+          "p50": 0.585,
+          "p95": 3.441,
+          "p99": 3.702,
+          "max": 4.244
+        },
+        "first_delta": {
+          "n": 400,
+          "p50": 3.666,
+          "p95": 6.066,
+          "p99": 6.777,
+          "max": 7.348
+        },
+        "done": {
+          "n": 400,
+          "p50": 4.893,
+          "p95": 7.507,
+          "p99": 8.276,
+          "max": 8.378
+        }
+      },
+      "api_cpu_pct_avg": 60.5,
+      "mongo_ops_per_s": {
+        "insert": 461.4,
+        "query": 690.9,
+        "update": 176.5,
+        "getmore": 2.1,
+        "command": 839.2
+      },
+      "mongo_ops_per_completed_run": {
+        "insert": 26.8,
+        "query": 40.1,
+        "update": 10.2,
+        "getmore": 0.1,
+        "command": 48.7
+      },
+      "mongo_reads_per_stream_second": 7.63,
+      "api_rss_mb_max": 100.5,
+      "mongo_cpu_pct_avg": 147.4,
+      "mongo_cpu_pct_max": 240.2,
+      "mongo_mem_mib_max": 1981.4
+    }
+  },
+  "failover": {
+    "runs": 8,
+    "victim_streams_cut_by_kill": 8,
+    "status_just_after_kill": [
+      "running"
+    ],
+    "clients_told_final_state_after_s": 31.4,
+    "stream_endings_on_survivor": [
+      "run.interrupted"
+    ],
+    "per_run": [
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 117,
+        "partial_chars_after": 117,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      },
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 108,
+        "partial_chars_after": 126,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      },
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 117,
+        "partial_chars_after": 117,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      },
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 117,
+        "partial_chars_after": 117,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      },
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 117,
+        "partial_chars_after": 117,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      },
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 117,
+        "partial_chars_after": 117,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      },
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 117,
+        "partial_chars_after": 117,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      },
+      {
+        "status": "interrupted",
+        "error_code": "interrupted",
+        "partial_chars_before_kill": 117,
+        "partial_chars_after": 117,
+        "partial_preserved": true,
+        "seq_contiguous_no_duplicates": true,
+        "sse_text_equals_partial": true,
+        "terminal_event": "run.interrupted",
+        "terminal_code": "lease_expired"
+      }
+    ],
+    "new_run_in_same_conversation": {
+      "http": 202,
+      "terminal": "run.completed"
+    }
+  }
+}

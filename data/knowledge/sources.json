@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "allowed_domains": ["www.getnet.net", "site.getnet.com.br", "getstore.getnet.com.br"],
+  "sources": [
+    {
+      "id": "official-visao-global",
+      "title": "Getnet: visão global (página oficial)",
+      "source_url": "https://www.getnet.net/en/",
+      "region": "global",
+      "language": "en",
+      "tags": ["institucional", "pagamentos"]
+    },
+    {
+      "id": "official-maquininhas",
+      "title": "Todas as maquininhas (página oficial)",
+      "source_url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["maquininhas", "get-classica", "get-smart"],
+      "limitations": ["Há faixas comerciais diferentes entre blocos e páginas; valores promocionais não são condições vigentes para um cliente."]
+    },
+    {
+      "id": "official-get-smart",
+      "title": "Get Smart (página oficial)",
+      "source_url": "https://site.getnet.com.br/maquininha/get-smart/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["get-smart", "getstore", "automacao"],
+      "limitations": ["A página pode conter ofertas promocionais antigas e placeholders; não usá-los como especificações atuais."]
+    },
+    {
+      "id": "official-pix",
+      "title": "Pix (página oficial comercial)",
+      "source_url": "https://site.getnet.com.br/pix/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["pix", "recebimento"],
+      "limitations": ["A página comercial e a documentação de Pix no POS Digital descrevem prazos distintos. Não tratar as modalidades como equivalentes."]
+    },
+    {
+      "id": "official-pix-pos-digital",
+      "title": "Pix no POS Digital (documentação oficial)",
+      "source_url": "https://getstore.getnet.com.br/docs/integracao-pagamento/pix/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["pix", "get-smart", "integracao", "status"],
+      "limitations": ["Escopo restrito ao POS Digital Get Smart; não generalizar seu prazo para toda modalidade Pix."]
+    },
+    {
+      "id": "official-link-pagamento",
+      "title": "Link de Pagamento (página oficial)",
+      "source_url": "https://site.getnet.com.br/link-de-pagamento/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["link-pagamento", "whatsapp", "vendas-online"],
+      "limitations": ["A página pode depender de JavaScript e de campanha sazonal; a captura pode vir vazia ou incompleta."]
+    },
+    {
+      "id": "official-antecipacao",
+      "title": "Antecipação de vendas pelo aplicativo (página oficial)",
+      "source_url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["antecipacao", "recebiveis", "aplicativo"],
+      "limitations": ["Condições como valor mínimo são as publicadas na data da coleta e devem ser revalidadas antes de orientar uma contratação."]
+    },
+    {
+      "id": "official-duvidas",
+      "title": "Dúvidas frequentes (página oficial)",
+      "source_url": "https://site.getnet.com.br/duvidas/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["crediario", "conectividade", "algar", "taxas"],
+      "limitations": ["FAQ extensa com conteúdo de diferentes épocas; confirmar a data e o produto antes de orientar."]
+    },
+    {
+      "id": "official-status-vendas",
+      "title": "Status das vendas (página oficial)",
+      "source_url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/quais-possiveis-status-das-minhas-vendas/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["status", "vendas", "recusa", "pix"],
+      "limitations": ["As definições não fornecem a causa detalhada de uma recusa específica; é necessário consultar os dados da transação."]
+    },
+    {
+      "id": "official-resultados-get-smart",
+      "title": "Get Smart: resultados das funcionalidades (documentação oficial)",
+      "source_url": "https://getstore.getnet.com.br/docs/integracao-pagamento/resultados-funcionalidades/",
+      "region": "BR",
+      "language": "pt-BR",
+      "tags": ["get-smart", "codigos", "erros", "integracao"],
+      "limitations": ["Não mapear estes códigos para erros de e-commerce, outras APIs ou modelos sem identificar a origem."]
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+services:
+  mongo:
+    image: mongodb/mongodb-atlas-local:8.0.4
+    hostname: mongo
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      - mongo-search:/data/mongot
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ping:1}).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+  api:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MONGO_URI: mongodb://mongo:27017/?directConnection=true
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://observability:4318
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  observability:
+    image: grafana/otel-lgtm:0.39.0
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - observability-data:/data
+      - ./infra/grafana/provisioning/dashboards/getnet.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/getnet.yaml:ro
+      - ./infra/grafana/dashboards:/otel-lgtm/getnet-dashboards:ro
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.adapters.inbound.worker"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MONGO_URI: mongodb://mongo:27017/?directConnection=true
+    volumes:
+      - ./data/knowledge:/data/knowledge:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+volumes:
+  mongo-data:
+  mongo-config:
+  mongo-search:
+  observability-data:

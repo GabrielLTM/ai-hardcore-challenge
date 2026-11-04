@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/node_modules/
+**/dist/
+*.pyc
+backups/
+.agents/
+exports/
+backend/evaluation/reports/
+Atendimento multiagente Getnet*.html
+docs/demo.md

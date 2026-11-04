@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "retrieved_on": "2026-11-03",
+  "documents": [
+    {
+      "id": "01-visao-global",
+      "title": "Getnet: visão global",
+      "source_url": "https://www.getnet.net/en/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "global",
+      "document_type": "curated_summary",
+      "source_language": "en",
+      "tags": [
+        "institucional",
+        "pagamentos"
+      ],
+      "limitations": [],
+      "content_sha256": "c3daf709556ac42c80908df8ad7877dc43590002e76c8f880ff9baa4b0aad248",
+      "path": "documents/01-visao-global.md"
+    },
+    {
+      "id": "02-maquininhas",
+      "title": "Maquininhas: catálogo e consulta comercial",
+      "source_url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "maquininhas",
+        "get-classica",
+        "get-smart"
+      ],
+      "limitations": [
+        "A captura da página não apresentou uma ficha técnica completa da Get Clássica. Comparação técnica entre modelos permanece parcial.",
+        "Há faixas comerciais diferentes entre blocos e páginas; números promocionais foram excluídos deste resumo."
+      ],
+      "content_sha256": "14f90b46a0889b41ad0669d4cbd75660ab591ea5fcf89e7b4998205c0ae0b85c",
+      "path": "documents/02-maquininhas.md"
+    },
+    {
+      "id": "03-get-smart",
+      "title": "Get Smart: aplicativos e automação",
+      "source_url": "https://site.getnet.com.br/maquininha/get-smart/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "get-smart",
+        "getstore",
+        "automacao"
+      ],
+      "limitations": [
+        "A página contém referência a oferta de 2025 e placeholders na ficha técnica; esses campos e taxas promocionais não foram usados como especificações atuais."
+      ],
+      "content_sha256": "e2295011cba3f7d32e9eadf878e1080373ddc69dbfa50f702a24a8eb94ba1d39",
+      "path": "documents/03-get-smart.md"
+    },
+    {
+      "id": "04-pix-comercial",
+      "title": "Pix: recebimento e canais digitais",
+      "source_url": "https://site.getnet.com.br/pix/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "pix",
+        "recebimento"
+      ],
+      "limitations": [
+        "A página comercial e a documentação de Pix no POS Digital descrevem prazos distintos. Não tratar as modalidades como equivalentes.",
+        "As perguntas frequentes do Pix não estavam expostas no texto acessível desta página."
+      ],
+      "content_sha256": "cfcbcda0a433d4d66a9b98f0c313a32fc8eed7a9c3361ca1ad380af6beefa357",
+      "path": "documents/04-pix-comercial.md"
+    },
+    {
+      "id": "05-pix-get-smart",
+      "title": "Pix no POS Digital: habilitação e consulta",
+      "source_url": "https://getstore.getnet.com.br/docs/integracao-pagamento/pix/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "pix",
+        "get-smart",
+        "integracao",
+        "status"
+      ],
+      "limitations": [
+        "Escopo restrito ao POS Digital Get Smart; não generalizar seu prazo para toda modalidade Pix.",
+        "A documentação pressupõe domicílio bancário e chave. Não responde universalmente se todos os produtos Pix exigem conta bancária tradicional."
+      ],
+      "content_sha256": "a0aab81ef355a64197725f7ca70c84f799181d5f653892af06ea72c10e919ef4",
+      "path": "documents/05-pix-get-smart.md"
+    },
+    {
+      "id": "06-link-pagamento",
+      "title": "Link de Pagamento: vendas por WhatsApp",
+      "source_url": "https://site.getnet.com.br/link-de-pagamento/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "link-pagamento",
+        "whatsapp",
+        "vendas-online"
+      ],
+      "limitations": [
+        "Página com campanha sazonal; preços e condições promocionais foram excluídos."
+      ],
+      "content_sha256": "010c1b522e4cf335fa2e7ba34f9de7d4ef520a95e4b64540eca94ab188b243b9",
+      "path": "documents/06-link-pagamento.md"
+    },
+    {
+      "id": "07-antecipacao",
+      "title": "Antecipação de vendas pelo aplicativo",
+      "source_url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "antecipacao",
+        "recebiveis",
+        "aplicativo"
+      ],
+      "limitations": [
+        "Valor mínimo é uma condição publicada na data da coleta e deve ser revalidado antes de orientar uma contratação."
+      ],
+      "content_sha256": "c56aea0d7f9d0fc1f8ff84539954f42024f00b668c73fda0d8084d0ab1af6132",
+      "path": "documents/07-antecipacao.md"
+    },
+    {
+      "id": "08-faq-crediario-conexao",
+      "title": "FAQ: crediário, conexão Algar e consultas",
+      "source_url": "https://site.getnet.com.br/duvidas/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "crediario",
+        "conectividade",
+        "algar",
+        "taxas"
+      ],
+      "limitations": [
+        "FAQ extensa com conteúdo de diferentes épocas; apenas os tópicos identificados foram sintetizados.",
+        "Diagnóstico de Wi-Fi e procedimentos específicos de todos os modelos ainda não estão cobertos."
+      ],
+      "content_sha256": "090e9fd6829e75edea5822a3000671fb9ee2fb8851ab2032decd358a07f8dab6",
+      "path": "documents/08-faq-crediario-conexao.md"
+    },
+    {
+      "id": "09-status-vendas",
+      "title": "Status de vendas: cartões e Pix",
+      "source_url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/quais-possiveis-status-das-minhas-vendas/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "status",
+        "vendas",
+        "recusa",
+        "pix"
+      ],
+      "limitations": [
+        "As definições não fornecem a causa detalhada de uma recusa específica; é necessário consultar os dados da transação."
+      ],
+      "content_sha256": "3b633e1b4227d764cf8d1c7db33a407cd86e6c5bef0d6756db05448c742a2e11",
+      "path": "documents/09-status-vendas.md"
+    },
+    {
+      "id": "10-resultados-get-smart",
+      "title": "Get Smart: códigos de resultado de integração",
+      "source_url": "https://getstore.getnet.com.br/docs/integracao-pagamento/resultados-funcionalidades/",
+      "publisher": "Getnet",
+      "retrieved_on": "2026-11-03",
+      "language": "pt-BR",
+      "region": "BR",
+      "document_type": "curated_summary",
+      "source_language": "pt-BR",
+      "tags": [
+        "get-smart",
+        "codigos",
+        "erros",
+        "integracao"
+      ],
+      "limitations": [
+        "Não mapear estes códigos para erros de e-commerce, outras APIs ou modelos sem identificar a origem."
+      ],
+      "content_sha256": "7058335d015a89773e3d79a934083f4aff6750cd254211d31da2f4ee57c7e421",
+      "path": "documents/10-resultados-get-smart.md"
+    }
+  ]
+}
