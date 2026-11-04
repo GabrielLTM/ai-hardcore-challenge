@@ -7,7 +7,7 @@ log = logging.getLogger(__name__)
 
 
 class OpenAIWebSearch:
-    def __init__(self, client, model, timeout_s: float = 30.0):
+    def __init__(self, client, model, timeout_s: float = 90.0):  # busca hospedada passa de 30 s em perguntas abertas (medido: 44 s)
         self.client, self.model, self.timeout_s = client, model, timeout_s
 
     async def __call__(self, query):

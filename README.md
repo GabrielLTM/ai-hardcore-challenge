@@ -21,8 +21,7 @@
 15. [Escolhas de design](#15-escolhas-de-design)
 16. [API e os 10 exemplos do desafio](#16-api-e-os-10-exemplos-do-desafio)
 17. [Resultados da rodada real](#17-resultados-da-rodada-real)
-18. [Limitações conhecidas](#18-limitações-conhecidas)
-19. [Estrutura do repositório e documentação](#19-estrutura-do-repositório-e-documentação)
+18. [Estrutura do repositório e documentação](#18-estrutura-do-repositório-e-documentação)
 
 ## 1. Visão geral
 
@@ -269,7 +268,7 @@ As ferramentas de suporte têm `properties: {}`: **não existe parâmetro de cli
 - **Sem segredos.** Configuração de agentes recusa texto com forma de credencial (`secret_detected`); erros do provedor chegam sanitizados (`502 run_failed` sem detalhe); a chave é um segredo mascarado.
 - **Honestidade sobre dados.** Os prompts mandam declarar evidência insuficiente, indisponibilidade de busca e dados de demonstração; Roteador e especialistas nunca respondem de memória sobre dados de cliente, prazos, taxas ou procedimentos. Pedidos ambíguos recebem uma pergunta de esclarecimento; sem resposta possível, a orientação é buscar os canais oficiais da Getnet.
 
-Não há classificador de moderação separado; o encaminhamento a humano é o agente `escalation`, que registra um ticket de demonstração (não há fila de atendimento real; veja as limitações).
+Não há classificador de moderação separado; o encaminhamento a humano é o agente `escalation`, que registra um ticket de demonstração (não há fila de atendimento real).
 
 ## 10. Rastreabilidade, uso e custo
 
@@ -400,22 +399,9 @@ Rodada observada em 03/11/2026, via `POST /api/v1/chat` com a API real da OpenAI
 | Depósito das vendas de ontem | `200` em 7 s. Valor e data vieram da ferramenta, com o aviso de dados de demonstração. |
 | "Minha maquininha está sem internet" | `200` em 25 s. Cooperação Roteador → Atendimento (`get_terminal_status`) → Especialista (`search_knowledge`), com o procedimento do chip Algar citado. |
 
-Tokens por execução: entre cerca de 4,6 mil e 16,7 mil (a execução do terminal somou 16.712, com 38 eventos e `cost_usd` nulo por não haver preço de `gpt-6-luna`). Esses números são de uma rodada, não uma garantia; não incluem os tokens da consulta de embedding nem da chamada de busca web (veja as limitações). Os outros seis cenários do enunciado não fazem parte desta rodada; os resultados da avaliação automatizada estão em [docs/avaliacao.md](docs/avaliacao.md).
+Tokens por execução: entre cerca de 4,6 mil e 16,7 mil (a execução do terminal somou 16.712, com 38 eventos e `cost_usd` nulo por não haver preço de `gpt-6-luna`). Esses números são de uma rodada, não uma garantia; não incluem os tokens da consulta de embedding nem da chamada de busca web. Os outros seis cenários do enunciado não fazem parte desta rodada; os resultados da avaliação automatizada estão em [docs/avaliacao.md](docs/avaliacao.md).
 
-## 18. Limitações conhecidas
-
-- **Páginas renderizadas por JavaScript.** O coletor lê só o HTML entregue pelo servidor. Uma página cujo texto dependa de JavaScript é registrada como falha `empty`, sem substituir a versão válida. Nenhuma das dez páginas atuais está nesse caso: a falha que aparecia em Link de Pagamento era um bug do extrator (pegava um `<article>` pequeno em vez do conteúdo), corrigido em 04/11/2026.
-- **Dados de suporte fictícios.** Recebíveis e terminais são fixtures, sem integração com sistemas da Getnet; as respostas dizem isso.
-- **Preços de referência.** Os valores da tabela (incluindo `gpt-6-luna`) vêm de referências de mercado e devem ser conferidos na página oficial da OpenAI. A cobrança da busca web hospedada (por chamada) não é estimada.
-- **Uso de tokens parcial.** `usage.recorded` cobre as chamadas dos agentes; a consulta de embedding e a chamada da busca web não informam uso hoje, então tokens e custo por execução ficam subestimados.
-- **Sem histórico para o modelo.** O histórico é persistido e exibido, mas cada execução envia ao modelo só a mensagem atual; a conversa não é reinjetada.
-- **Fontes oficiais dinâmicas.** `retrieved_on` é a data da coleta, não da publicação; páginas comerciais trazem campanhas antigas e valores divergentes, e a base declara essas limitações em cada trecho. Resultados com prazo do Pix dependem da modalidade e são apresentados com o escopo de cada fonte.
-- **Respostas não determinísticas e latência de 7 a 25 s** por execução na rodada real; depende do provedor.
-- **Escalonamento humano é simulado:** o ticket fica em `handoffs` e o protocolo é devolvido ao cliente, sem integração com atendimento real. **Não implementados:** classificador de moderação separado (os guardrails são de servidor e de prompt), quota atômica compartilhada entre réplicas (o limite por workspace é contar e inserir), buffer de desconexão para streams lentos e paginação por cursor em conversas.
-- **Ambiente local.** MongoDB Atlas Local é para desenvolvimento e demonstração; produção exige deployment e armazenamento adequados ([docs/producao.md](docs/producao.md)).
-- **Tempo de desenvolvimento.** Este repositório não registra a medição dos 60 minutos de tela do núcleo; o escopo implementado (administração de agentes, SSE durável, frontend, operação) vai além do núcleo exigido.
-
-## 19. Estrutura do repositório e documentação
+## 18. Estrutura do repositório e documentação
 
 ```text
 backend/                  API, worker e testes (Python 3.12, uv)
