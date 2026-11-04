@@ -19,6 +19,16 @@ import { useRunStream } from './useRunStream'
 import './chat.css'
 
 const DEMO_USER = (import.meta.env.VITE_DEMO_USER_ID as string | undefined) ?? 'cliente1988'
+
+// crypto.randomUUID só existe em contexto seguro (https ou localhost); em http puro, monta o UUID v4 com getRandomValues
+function newIdempotencyKey(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
 const titleFrom = (text: string) => {
   const line = text.split('\n')[0].trim()
   return line.length > 60 ? `${line.slice(0, 57)}…` : line || 'Nova conversa'
@@ -135,7 +145,7 @@ export default function ChatPage() {
       } else userId = list.items.find((c) => c.id === convId)?.user_id ?? userId
       // mesma chave só no retry da mesma intenção (mesmo texto, mesma conversa)
       const prev = intent.current
-      const key = !fresh && prev && prev.text === text && prev.conversationId === convId ? prev.key : crypto.randomUUID()
+      const key = !fresh && prev && prev.text === text && prev.conversationId === convId ? prev.key : newIdempotencyKey()
       intent.current = { key, text, conversationId: convId }
       const run = await api<StartedRun>(`/conversations/${convId}/runs`, {
         method: 'POST', body: { message: text, user_id: userId }, headers: { 'Idempotency-Key': key },
