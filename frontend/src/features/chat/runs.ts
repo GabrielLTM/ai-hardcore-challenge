@@ -10,12 +10,13 @@ export interface RunEvent {
 }
 
 export type Terminal = 'completed' | 'failed' | 'cancelled' | 'interrupted'
-export type Phase = 'waiting' | 'routing' | 'running' | 'generating' | Terminal
+export type Phase = 'waiting' | 'routing' | 'running' | 'generating' | 'reviewing' | Terminal
 export const TERMINAL_STATUS: readonly string[] = ['completed', 'failed', 'cancelled', 'interrupted']
 export const isTerminalStatus = (s?: string): s is Terminal => !!s && TERMINAL_STATUS.includes(s)
+export const isLivePhase = (p: Phase) => p === 'waiting' || p === 'routing' || p === 'running' || p === 'generating' || p === 'reviewing'
 export const EVENT_TYPES = [
   'run.started', 'route.selected', 'agent.started', 'agent.completed', 'agent.failed', 'tool.started', 'tool.completed',
-  'tool.failed', 'retrieval.completed', 'web.completed', 'response.delta', 'usage.recorded',
+  'tool.failed', 'retrieval.completed', 'web.completed', 'response.delta', 'response.reset', 'review.started', 'review.completed', 'usage.recorded',
   'run.completed', 'run.failed', 'run.cancelled', 'run.interrupted',
 ] as const
 
@@ -87,6 +88,7 @@ export function applyEvents(state: RunState, batch: RunEvent[]): RunState {
     lastSeq = ev.seq
     const p = rec(ev.payload)
     if (ev.type === 'response.delta') { if (typeof p.text === 'string') text += p.text; continue }
+    if (ev.type === 'response.reset') text = '' // a revisão substitui a resposta já transmitida; vale também no replay
     events.push({ ...ev, payload: p })
     if (ev.type in TERMINAL_EVENT) {
       terminal = TERMINAL_EVENT[ev.type]
@@ -99,6 +101,8 @@ export function applyEvents(state: RunState, batch: RunEvent[]): RunState {
 export function phaseOf(s: RunState, status?: string): Phase {
   if (s.terminal) return s.terminal
   if (isTerminalStatus(status)) return status
+  const review = s.events.findLast((e) => e.type === 'review.started' || e.type === 'review.completed')
+  if (review?.type === 'review.started') return 'reviewing'
   if (s.text) return 'generating'
   if (s.events.some((e) => e.type === 'route.selected' || e.type.startsWith('tool.'))) return 'running'
   if (s.events.length > 0 || status === 'running') return 'routing'
@@ -106,12 +110,12 @@ export function phaseOf(s: RunState, status?: string): Phase {
 }
 
 export const PHASE_LABEL: Record<Phase, string> = {
-  waiting: 'Aguardando', routing: 'Roteando', running: 'Executando', generating: 'Gerando',
+  waiting: 'Aguardando', routing: 'Roteando', running: 'Executando', generating: 'Gerando', reviewing: 'Verificando',
   completed: 'Concluída', failed: 'Falhou', cancelled: 'Cancelada', interrupted: 'Interrompida',
 }
 export const PHASE_LIVE_TEXT: Record<Phase, string> = {
   waiting: 'Na fila para iniciar', routing: 'Entendendo o pedido…', running: 'Consultando informações…',
-  generating: 'Escrevendo a resposta…', completed: 'Resposta concluída.', failed: 'Não foi possível concluir a resposta.',
+  generating: 'Escrevendo a resposta…', reviewing: 'Verificando a resposta…', completed: 'Resposta concluída.', failed: 'Não foi possível concluir a resposta.',
   cancelled: 'Parado por você · texto parcial', interrupted: 'Execução interrompida · texto parcial',
 }
 
@@ -121,16 +125,15 @@ export interface Step {
   status: 'done' | 'running' | 'error' | 'cancelled' | 'pending'
   title: string
   detail?: string
-  demo?: boolean
   sources?: boolean
   requestId?: string
 }
 
-const TOOL_COPY: Record<string, { running: string; done: string; failed: string; demo?: boolean }> = {
-  get_terminal_status: { running: 'Consultando sua maquininha', done: 'Consultou sua maquininha', failed: 'Não conseguiu consultar sua maquininha', demo: true },
-  get_receivables: { running: 'Consultando seus recebíveis', done: 'Consultou seus recebíveis', failed: 'Não conseguiu consultar seus recebíveis', demo: true },
+const TOOL_COPY: Record<string, { running: string; done: string; failed: string}> = {
+  get_terminal_status: { running: 'Consultando sua maquininha', done: 'Consultou sua maquininha', failed: 'Não conseguiu consultar sua maquininha' },
+  get_receivables: { running: 'Consultando seus recebíveis', done: 'Consultou seus recebíveis', failed: 'Não conseguiu consultar seus recebíveis' },
   search_knowledge: { running: 'Buscando orientação na base Getnet', done: 'Buscou orientação na base Getnet', failed: 'Não conseguiu buscar na base Getnet' },
-  request_human_handoff: { running: 'Encaminhando para atendimento humano', done: 'Encaminhou para atendimento humano', failed: 'Não conseguiu encaminhar para atendimento humano', demo: true },
+  request_human_handoff: { running: 'Encaminhando para atendimento humano', done: 'Encaminhou para atendimento humano', failed: 'Não conseguiu encaminhar para atendimento humano' },
   web_search: { running: 'Pesquisando na web', done: 'Pesquisou na web', failed: 'A busca na web não está disponível agora' },
 }
 /** O backend resume ferramentas como "1 registros"; aqui vira frase de atendimento. */
@@ -180,7 +183,7 @@ export function buildSteps(s: RunState, phase: Phase, ctx: StepCtx = {}): Step[]
       case 'tool.started': {
         if (tool === 'delegate_to_agent') break
         const c = TOOL_COPY[tool] ?? GENERIC_TOOL
-        const step: Step = { id: `tool-${e.seq}`, status: 'running', title: c.running, demo: TOOL_COPY[tool]?.demo }
+        const step: Step = { id: `tool-${e.seq}`, status: 'running', title: c.running }
         steps.push(step)
         open.set(`${agent}:${tool}`, step)
         break
@@ -190,7 +193,7 @@ export function buildSteps(s: RunState, phase: Phase, ctx: StepCtx = {}): Step[]
         if (tool === 'delegate_to_agent') break
         const c = TOOL_COPY[tool] ?? GENERIC_TOOL
         let step = open.get(`${agent}:${tool}`)
-        if (!step) { step = { id: `tool-${e.seq}`, status: 'running', title: '', demo: TOOL_COPY[tool]?.demo }; steps.push(step) }
+        if (!step) { step = { id: `tool-${e.seq}`, status: 'running', title: '' }; steps.push(step) }
         open.delete(`${agent}:${tool}`)
         const failed = e.type === 'tool.failed'
         step.status = failed ? 'error' : 'done'
@@ -213,6 +216,20 @@ export function buildSteps(s: RunState, phase: Phase, ctx: StepCtx = {}): Step[]
         step.sources = !web
         break
       }
+      case 'review.started':
+        steps.push({ id: `review-${num(p.round) ?? e.seq}`, status: 'running', title: 'Verificando a resposta' })
+        break
+      case 'review.completed': {
+        const verdict = str(p.verdict)
+        if (verdict === 'skipped') break
+        let step = steps.find((x) => x.id === `review-${num(p.round) ?? e.seq}`)
+        if (!step) { step = { id: `review-${num(p.round) ?? e.seq}`, status: 'done', title: '' }; steps.push(step) }
+        step.status = 'done'
+        step.title = verdict === 'revisar' ? 'Revisou e pediu uma nova versão' : verdict === 'failed' ? 'Não conseguiu revisar a resposta' : 'Revisou a resposta'
+        step.detail = verdict === 'failed' ? 'A resposta segue sem revisão.'
+          : p.revision === 'skipped_budget' ? 'Sem tempo para refazer: a primeira resposta foi mantida.' : undefined
+        break
+      }
       case 'agent.failed':
         steps.push({ id: `agent-${e.seq}`, status: 'error', title: `${nameOf(agent)} não conseguiu concluir`, detail: str(p.message), requestId: str(p.request_id) })
         break
@@ -220,7 +237,7 @@ export function buildSteps(s: RunState, phase: Phase, ctx: StepCtx = {}): Step[]
   }
 
   const noRoute = routes === 0
-  if (noRoute && !s.terminal && phase !== 'waiting') steps.unshift({ id: 'understanding', status: 'running', title: 'Entendendo o pedido' })
+  if (noRoute && !s.terminal && phase !== 'waiting' && phase !== 'reviewing') steps.unshift({ id: 'understanding', status: 'running', title: 'Entendendo o pedido' })
 
   switch (phase) {
     case 'completed':

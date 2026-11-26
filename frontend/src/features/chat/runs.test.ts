@@ -60,7 +60,7 @@ describe('buildSteps', () => {
     const steps = buildSteps(s, phaseOf(s), { citedCount: 1 })
     expect(steps.map((x) => x.title)).toEqual(['Entendeu o pedido', 'Consultou sua maquininha', 'Buscou orientação na base Getnet', 'Preparando a resposta'])
     expect(steps[0].detail).toContain('Atendimento ao Cliente')
-    expect(steps[1]).toMatchObject({ status: 'done', demo: true, detail: '1 maquininha consultada.' })
+    expect(steps[1]).toMatchObject({ status: 'done', detail: '1 maquininha consultada.' })
     expect(steps[2].detail).toBe('3 trechos encontrados, 1 usado na resposta.')
   })
 
@@ -72,7 +72,7 @@ describe('buildSteps', () => {
       ev('tool.completed', { agent_id: 'escalation', tool: 'request_human_handoff', summary: 'Protocolo ATD-20261104-K7M2' }),
     ])
     const step = buildSteps(s, 'running').find((x) => x.id.startsWith('tool-'))
-    expect(step).toMatchObject({ status: 'done', title: 'Encaminhou para atendimento humano', detail: 'Protocolo ATD-20261104-K7M2', demo: true })
+    expect(step).toMatchObject({ status: 'done', title: 'Encaminhou para atendimento humano', detail: 'Protocolo ATD-20261104-K7M2' })
   })
   it('mostra falha de ferramenta e cancelamento sem esconder o texto parcial', () => {
     seq = 0
@@ -97,5 +97,68 @@ describe('buildTech', () => {
     seq = 0
     const s = applyEvents(initialRunState, [ev('usage.recorded', { usage: { input_tokens: 1 }, cost_usd: 0.002 }), ev('usage.recorded', { usage: { input_tokens: 1 }, cost_usd: null })])
     expect(buildTech('r', s).cost).toEqual({ usd: 0.002, partial: true, known: true })
+  })
+})
+
+describe('revisão da resposta', () => {
+  const delta = (s: string): RunEvent => ({ seq: ++seq, occurred_at: '', type: 'response.delta', payload: { text: s } })
+  const revised = () => {
+    seq = 0
+    return [
+      ev('run.started'), delta('Primeira '), delta('resposta'),
+      ev('review.started', { agent_id: 'reviewer', round: 1 }),
+      ev('review.completed', { agent_id: 'reviewer', round: 1, verdict: 'revisar', issues: ['sem citação'] }),
+      ev('response.reset', { reason: 'review', round: 2 }),
+      delta('Resposta '), delta('revisada'),
+    ]
+  }
+
+  it('response.reset descarta o texto acumulado, inclusive em replay e reconexão', () => {
+    const batch = revised()
+    const live = batch.reduce((s, e) => applyEvents(s, [e]), initialRunState)
+    expect(live.text).toBe('Resposta revisada')
+    expect(applyEvents(initialRunState, batch).text).toBe('Resposta revisada') // replay completo
+    expect(applyEvents(live, batch).text).toBe('Resposta revisada') // reentrega não duplica
+    const cut = applyEvents(initialRunState, batch.slice(0, 6)) // reconecta logo depois do reset
+    expect(cut.text).toBe('')
+    expect(applyEvents(cut, batch).text).toBe('Resposta revisada')
+  })
+
+  it('fica em "reviewing" de review.started até review.completed ou o fim', () => {
+    const batch = revised()
+    let s = applyEvents(initialRunState, batch.slice(0, 4))
+    expect(phaseOf(s)).toBe('reviewing')
+    expect(buildSteps(s, phaseOf(s)).find((x) => x.status === 'running')?.title).toBe('Verificando a resposta')
+    s = applyEvents(s, batch.slice(4))
+    expect(phaseOf(s)).toBe('generating')
+    expect(buildSteps(s, phaseOf(s)).map((x) => x.title)).toContain('Revisou e pediu uma nova versão')
+    const ended = applyEvents(initialRunState, [...batch.slice(0, 4), ev('run.completed')])
+    expect(phaseOf(ended)).toBe('completed')
+  })
+
+  it('texto retido: verifica sem texto e mostra a resposta uma vez só quando chega', () => {
+    seq = 0
+    const held = [
+      ev('run.started'), ev('route.selected', { destination: 'getnet' }),
+      ev('review.started', { agent_id: 'reviewer', round: 1 }),
+      ev('review.completed', { agent_id: 'reviewer', round: 1, verdict: 'revisar', revision: 'done' }),
+      ev('review.started', { agent_id: 'reviewer', round: 2 }),
+    ]
+    let s = applyEvents(initialRunState, held)
+    expect(s.text).toBe('')
+    expect(phaseOf(s)).toBe('reviewing')
+    expect(buildSteps(s, phaseOf(s)).map((x) => x.title)).toEqual(['Entendeu o pedido', 'Revisou e pediu uma nova versão', 'Verificando a resposta'])
+    const rest = [ev('review.completed', { agent_id: 'reviewer', round: 2, verdict: 'aprovar' }), delta('Resposta '), delta('final')]
+    s = applyEvents(s, rest)
+    expect(s.text).toBe('Resposta final')
+    expect(applyEvents(s, [...held, ...rest]).text).toBe('Resposta final') // reentrega não duplica
+    expect(phaseOf(s)).toBe('generating')
+  })
+
+  it('revisão dispensada não aparece no andamento', () => {
+    seq = 0
+    const s = applyEvents(initialRunState, [ev('run.started'), ev('review.completed', { agent_id: 'reviewer', round: 1, verdict: 'skipped' })])
+    expect(phaseOf(s)).toBe('routing')
+    expect(buildSteps(s, phaseOf(s)).some((x) => x.id.startsWith('review-'))).toBe(false)
   })
 })

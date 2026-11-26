@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react'
-import { Button, Chip, CopyButton, DemoChip, ExternalLink, ProblemPanel, StatePanel } from '../../shared/ui'
+import { Button, Chip, CopyButton, ExternalLink, ProblemPanel, StatePanel } from '../../shared/ui'
 import { Icon } from '../../shared/icons'
 import type { ApiProblem } from '../../shared/api'
 import { fmtBothZones, fmtDate, fmtDuration, fmtInt, fmtUsd } from '../../shared/format'
@@ -93,7 +93,6 @@ function Andamento({ run, evidence, onTab }: { run: RunStream; evidence?: Eviden
                 <div style={{ fontWeight: 600 }}><span className="sr-only">{i.sr}</span>{s.title}</div>
                 {s.detail && <div className="small" style={{ fontSize: 13, color: 'var(--ink-2)' }}>{s.detail}</div>}
                 {s.requestId && <div className="small">request_id <code>{s.requestId}</code></div>}
-                {s.demo && <div style={{ marginTop: 4 }}><DemoChip /></div>}
                 {s.sources && <button type="button" className="btn btn--bare small" style={{ marginTop: 2 }} onClick={() => onTab('fontes')}>Ver fontes</button>}
               </div>
             </li>

@@ -2,6 +2,7 @@
 
 Uses the local Mongo (replica set) with a throw-away database and a scripted model; skipped when Mongo is down.
 """
+import os
 import asyncio
 import codecs
 import json
@@ -24,7 +25,7 @@ from app.domain.identity import Identity
 from app.domain.models import Agent, AgentKind, ModelEvent
 from test_core_orchestrator import CHUNK, call, say
 
-URI = 'mongodb://localhost:27017/?directConnection=true'
+URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/?directConnection=true')
 
 
 def _mongo_up() -> bool:

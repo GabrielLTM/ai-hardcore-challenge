@@ -35,7 +35,7 @@ def decode_cursor(cursor: str | None) -> Any:
 
 
 def node(doc: dict[str, Any]) -> Node:
-    return Node(tuple(doc['delegates']), tuple(doc['tools']), doc['enabled'])
+    return Node(tuple(doc['delegates']), tuple(doc['tools']), doc['enabled'], doc.get('kind', ''))
 
 
 def issue_view(i: GraphIssue) -> dict[str, Any]:

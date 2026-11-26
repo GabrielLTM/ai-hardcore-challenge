@@ -26,11 +26,12 @@ from app.domain.pricing import PRICING_VERSION, estimate_cost_usd
 
 SERVICE_NAME = 'getnet-support-api'
 log = logging.getLogger(__name__)  # degradation notices only, never content
+_HUMAN_SECONDS = [30, 60, 120, 300, 600, 1800, 3600, 7200, 14400]  # people take minutes, not milliseconds
 _SECONDS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120]
 _TERMINAL = {'run.completed': 'completed', 'run.failed': 'failed', 'run.cancelled': 'cancelled', 'run.interrupted': 'interrupted'}
 # Allow-list of payload fields that may reach logs (payload key -> log attribute). Everything else is dropped.
 _LOG_FIELDS = {'agent_id': 'agent_id', 'name': 'agent_name', 'version': 'agent_version', 'tool': 'tool',
-               'destination': 'destination', 'model': 'model'}
+               'destination': 'destination', 'model': 'model', 'verdict': 'review_verdict', 'round': 'review_round', 'revision': 'review_revision'}
 _UNTRACED_PREFIX = '/api/v1/health/'
 
 
@@ -72,6 +73,15 @@ class _Telemetry:
         # No unit: Prometheus would append it to the name; "usd" is already in the name.
         self.cost = meter.create_counter('getnet.llm.cost.usd', '', 'Custo estimado (USD) com preço versionado')
         self.unpriced = meter.create_counter('getnet.llm.unpriced.calls', '{call}', 'Chamadas sem custo estimável')
+        self.review_verdicts = meter.create_counter('getnet.review.verdicts', '{verdict}', 'Vereditos do Revisor por resultado e rodada')
+        self.review_revisions = meter.create_counter('getnet.review.revisions', '{run}', 'Execuções revisadas por desfecho da revisão')
+        self.review_duration = meter.create_histogram('getnet.review.duration', 's', 'Duração de cada julgamento do Revisor',
+                                                      explicit_bucket_boundaries_advisory=[0.5, 1, 2, 3, 5, 8, 13, 20, 30])
+        self.handoffs = meter.create_counter('getnet.handoffs', '{handoff}', 'Protocolos de atendimento humano por evento')
+        self.handoff_wait = meter.create_histogram('getnet.handoff.wait', 's', 'Tempo da abertura do protocolo até um atendente assumir',
+                                                   explicit_bucket_boundaries_advisory=_HUMAN_SECONDS)
+        self.handoff_handle = meter.create_histogram('getnet.handoff.handle', 's', 'Tempo de atendimento humano, de assumir até encerrar',
+                                                     explicit_bucket_boundaries_advisory=_HUMAN_SECONDS)
 
     def shutdown(self):
         for provider in (self.tracer_provider, self.meter_provider, self.logger_provider):
@@ -87,6 +97,17 @@ def _configure(span_processors, metric_readers, log_processors, version: str) ->
     if old:
         _safe(old.shutdown)
     return _T
+
+
+def record_handoff(event: str, seconds: float | None = None) -> None:
+    """`event`: opened, claimed, closed or cancelled (the customer left the queue); `seconds` is the wait (claimed) or the handling time (closed). No customer attributes."""
+    tel = _T
+    if tel is None:
+        return
+    _safe(tel.handoffs.add, 1, {'event': event})
+    histogram = {'claimed': tel.handoff_wait, 'closed': tel.handoff_handle}.get(event)
+    if histogram is not None and seconds is not None:
+        _safe(histogram.record, max(seconds, 0.0))
 
 
 def setup_telemetry(app, settings: Settings) -> None:
@@ -202,12 +223,23 @@ class _RunTrace:
             self._top().add_event(kind, {'count': len(data.get('results') or data.get('sources') or [])})
         elif kind == 'usage.recorded':
             extra = self._usage(data)
+        elif kind == 'review.completed':
+            self._review(data)
         elif kind in _TERMINAL:
             self.finish(_TERMINAL[kind])
             return
         elif kind == 'response.delta':  # message content: neither logged nor traced
             return
         self._log(kind, data, extra)
+
+    def _review(self, data: dict) -> None:
+        """One verdict per round; the run's revision outcome is counted once, on round 1 (or on a failed round 2)."""
+        verdict, round_ = data.get('verdict'), data.get('round')
+        _safe(self.tel.review_verdicts.add, 1, {'verdict': verdict, 'round': round_})
+        if data.get('duration_ms') is not None:
+            _safe(self.tel.review_duration.record, data['duration_ms'] / 1000)
+        if round_ == 1 or data.get('revision') == 'failed':
+            _safe(self.tel.review_revisions.add, 1, {'outcome': data.get('revision')})
 
     def _usage(self, data: dict) -> dict:
         model = data.get('model') or 'unknown'

@@ -36,7 +36,7 @@ A API valida JWTs Bearer emitidos por um provedor OIDC externo (Keycloak, Entra 
 | `OIDC_WORKSPACE_CLAIM` | `workspace_id` | Claim com o workspace da pessoa. Aceita nome literal (inclusive URL) ou caminho com pontos. |
 | `OIDC_ALLOWED_WORKSPACES` | vazio | Lista separada por vírgula. Se definida, o workspace do token precisa estar nela. |
 | `OIDC_ROLES_CLAIM` | `roles` | Claim com os papéis (lista ou texto). Aceita caminho com pontos, por exemplo `realm_access.roles`. |
-| `OIDC_ADMIN_ROLE` / `OIDC_OPERATOR_ROLE` | `admin` / `operator` | Nomes dos papéis no provedor. |
+| `OIDC_ADMIN_ROLE` / `OIDC_OPERATOR_ROLE` / `OIDC_ATTENDANT_ROLE` | `admin` / `operator` / `attendant` | Nomes dos papéis no provedor. |
 | `OIDC_LEEWAY_SECONDS` | `30` | Tolerância para diferença de relógio em `exp`, `nbf` e `iat`. |
 | `OIDC_JWKS_TTL_SECONDS` | `600` | Validade do cache das chaves. |
 | `OIDC_JWKS_MIN_REFRESH_SECONDS` | `30` | Intervalo mínimo entre buscas do JWKS provocadas por `kid` desconhecido. |
@@ -54,7 +54,7 @@ A API valida JWTs Bearer emitidos por um provedor OIDC externo (Keycloak, Entra 
 |---|---|
 | `user_id` | `sub` do token. |
 | `workspace_id` | Claim configurada. Precisa casar com `[A-Za-z0-9._:-]{1,64}` e, se houver lista, estar em `OIDC_ALLOWED_WORKSPACES`. O provedor é a autoridade sobre a associação pessoa e workspace: a lista é a trava adicional recomendada. |
-| `role` | `admin` se o papel de administrador estiver nos papéis do token; senão `operator` se o papel de operador estiver; senão acesso negado. |
+| `role` | `admin` se o papel de administrador estiver nos papéis do token; senão `operator` se o papel de operador estiver; senão `attendant` se o papel de atendente estiver; senão acesso negado. |
 
 O `user_id` enviado no corpo (`POST /chat`, `POST /conversations/{id}/runs`) nunca é confiável: precisa ser igual ao `sub` do token, ou a resposta é 403. Todas as consultas privadas (conversas, mensagens, execuções, eventos, evidências) são filtradas por workspace e usuário do token. Conversa ou execução de outra pessoa responde 404, sem revelar o conteúdo. Um administrador não lê conversas de outras pessoas.
 
@@ -77,6 +77,7 @@ Limite conhecido: o token é validado quando a requisição começa. Um stream S
 | Papel | Pode |
 |---|---|
 | `operator` | Conversar (`/chat`, `/conversations`, `/runs`), ver e cancelar as próprias execuções, ler as próprias evidências. |
+| `attendant` | Só a área do atendente (`/operator/*`): fila de protocolos do workspace, assumir, responder, notas e encerrar. Recebe `403` nas rotas do cliente e de administração. O login por senha (`/operator/login`) não existe em produção. |
 | `admin` | Tudo do operador, mais `/agents`, `/prompts`, `/graph` e `/knowledge` (configurar, publicar, restaurar versões, ingerir base de conhecimento). |
 
 O papel vem sempre do token, e é aplicado no servidor (`require_admin`). Testes: `backend/tests/test_prod_oidc.py` (toda rota protegida responde 401 sem token válido; toda rota administrativa responde 403 para operador) e `backend/tests/test_prod_isolation.py` (isolamento entre usuários e entre workspaces, com Mongo).

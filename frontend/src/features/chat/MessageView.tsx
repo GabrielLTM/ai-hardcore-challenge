@@ -3,7 +3,36 @@ import { Markdown } from '../../shared/markdown'
 import { Button, Chip, CopyButton } from '../../shared/ui'
 import { Icon } from '../../shared/icons'
 import { fmtTime } from '../../shared/format'
-import { PHASE_LABEL, PHASE_LIVE_TEXT, type Phase } from './runs'
+import { isLivePhase, PHASE_LABEL, PHASE_LIVE_TEXT, type Phase } from './runs'
+import type { CustomerHandoff } from './types'
+
+/** Aviso fixo enquanto um atendente humano cuida da conversa. */
+export function HandoffBanner({ handoff, onLeave, leaving }: { handoff: CustomerHandoff; onLeave?: () => void; leaving?: boolean }) {
+  const withOperator = handoff.status === 'em_atendimento'
+  return (
+    <div role="status" className="banner handoff-banner">
+      <Icon name={withOperator ? 'chat' : 'clock'} size={14} />
+      <span>
+        <strong>{withOperator ? `Você está falando com ${handoff.operator_name ?? 'um atendente'}` : 'Aguardando um atendente'}</strong>
+        <span className="muted"> · protocolo <span className="mono">{handoff.protocol}</span></span>
+      </span>
+      {!withOperator && onLeave && <Button small className="handoff-banner__leave" busy={leaving} onClick={onLeave}>Voltar ao assistente</Button>}
+    </div>
+  )
+}
+
+export function OperatorBubble({ text, name, at }: { text: string; name?: string; at?: string }) {
+  return (
+    <article className="bubble bubble--operator" aria-label={`Mensagem do atendente ${name ?? ''}`.trim()}>
+      <div className="bubble__byline"><Chip tone="success" icon="chat">Atendente {name ?? ''}</Chip>{at && <span className="small muted">{fmtTime(at)}</span>}</div>
+      <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{text}</div>
+    </article>
+  )
+}
+
+export function SystemNotice({ text }: { text: string }) {
+  return <p className="system-notice"><Icon name="info" size={14} /><span>{text}</span></p>
+}
 
 export function UserBubble({ text, at }: { text: string; at?: string }) {
   return (
@@ -33,7 +62,7 @@ interface AssistantProps {
 
 export function AssistantBubble({ phase, text, byline, at, runId, requestId, failureMessage, streaming, actionsDisabled, onCite, onSources, onResend, slowHint }: AssistantProps) {
   const toast = useToast()
-  const active = phase === 'waiting' || phase === 'routing' || phase === 'running' || phase === 'generating'
+  const active = isLivePhase(phase)
   const partial = phase === 'cancelled' || phase === 'interrupted'
   const cite = runId && onCite ? (m: string) => onCite(runId, m) : undefined
   return (

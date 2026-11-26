@@ -37,7 +37,10 @@ Todos os `payload` são sanitizados: sem raciocínio do modelo, sem credenciais,
 | `retrieval.completed` | Busca na base ou na web trouxe resultados | `agent_id`, `source` (`knowledge` ou `web`), `results`: itens `{evidence_id, kind, title, url, retrieved_on}` (base) ou `{evidence_id, title, url}` (web) |
 | `response.delta` | Pedaço da resposta final (só o agente raiz, em lotes de ~200 caracteres ou 0,25 s) | `text`, `agent_id` |
 | `usage.recorded` | Uma chamada ao modelo terminou | `agent_id`, `model`, `usage` (como o provedor informou), `cost_usd` (`null` para modelo fora da tabela), `pricing_version` |
-| `run.completed` | Terminal: resposta concluída | `cited_evidence` (ids citados e válidos), `invalid_citations` |
+| `review.started` | O Revisor começou a julgar a resposta | `agent_id`, `round` (1 ou 2) |
+| `review.completed` | Veredito do Revisor, ou revisão dispensada | `agent_id`, `round`, `verdict` (`aprovar`, `revisar`, `failed` ou `skipped` quando não houve evidência nem ferramenta de dados), `scores` (`fundamentacao`, `cobertura`, `limitacoes`, `seguranca`, de 0 a 2), `issues` (frases curtas, mascaradas), `revision` (`not_needed`, `done`, `skipped_budget` ou `failed`), `code` (em `failed`), `cost_usd`, `duration_ms`, `agents` (agentes da rodada) e `sources` (id, tipo, fonte, título e URL das evidências). Nunca traz texto de evidência |
+| `response.reset` | Raro: um trecho já transmitido ao vivo (antes de haver evidência) foi descartado; o texto que segue o substitui | `reason` (`review`), `round` |
+| `run.completed` | Terminal: resposta concluída | `cited_evidence` (ids citados e válidos), `invalid_citations`, `review` (quando houve Revisor: `rounds` e `revision`) |
 | `run.failed` | Terminal: falha | `cited_evidence`, `invalid_citations`, `code`, `message` |
 | `run.cancelled` | Terminal: cancelada a pedido | `cited_evidence`, `invalid_citations` |
 | `run.interrupted` | Terminal: a execução parou sem terminar | `code` (`interrupted` ou `lease_expired`), `message`, e `cited_evidence`/`invalid_citations` quando a instância dona a encerrou |
@@ -70,9 +73,15 @@ id: 38  event: run.completed
 
 A ordem típica de uma execução com delegação é `run.started`, `agent.started` (roteador), `usage.recorded`, `tool.started` (`delegate_to_agent`), `route.selected`, `agent.started` (especialista), ferramentas e `retrieval.completed`, `agent.completed`, `tool.completed`, mais `usage.recorded` do roteador, `response.delta` (vários), `agent.completed` e o evento terminal. A execução de 38 eventos acima delega duas vezes (`router → support → knowledge`).
 
+Mensagens do atendimento humano não são eventos SSE: não existe execução enquanto a conversa está com um atendente. O cliente as lê em `GET /conversations/{id}/messages` (consulta a cada 3 s no chat enquanto `handoff` não é nulo), com `role: "operator"` (e `author_name`) ou `role: "system"` (avisos). A trilha do protocolo (`handoffs.timeline`) registra `opened`, `customer_message`, `claimed`, `operator_message`, `note` e `closed` com horário e atendente.
+
 ## Texto da resposta
 
-Concatenar os `payload.text` de todos os `response.delta`, na ordem de `seq`, reproduz exatamente a resposta (cada caractere uma vez, com acentos e emoji intactos); o mesmo texto fica em `GET /runs/{id}` (`partial_text`) e na mensagem do assistente. O contrato é verificado com texto UTF-8 de vários bytes dividido em lotes (`test_sse_contract_replay_without_duplicates_and_fragmented_utf8`). Se a resposta contiver `[n]`, `n` aponta para `evidence_id` em `GET /runs/{id}/evidence`.
+Concatenar os `payload.text` dos `response.delta` posteriores ao último `response.reset` (ou de todos, se não houver reset), na ordem de `seq`, reproduz exatamente a resposta (cada caractere uma vez, com acentos e emoji intactos); o mesmo texto fica em `GET /runs/{id}` (`partial_text`) e na mensagem do assistente. O contrato é verificado com texto UTF-8 de vários bytes dividido em lotes (`test_sse_contract_replay_without_duplicates_and_fragmented_utf8`). Se a resposta contiver `[n]`, `n` aponta para `evidence_id` em `GET /runs/{id}/evidence`.
+
+### Revisão da resposta
+
+Quando o grafo publicado tem um Revisor ativo e a execução já recuperou evidência ou chamou uma ferramenta de dados do cliente, o texto da resposta fica **retido até o veredito**: o SSE traz os eventos de andamento, `review.started` e `review.completed`, e só então os `response.delta` da resposta aprovada. Com veredito `revisar` e orçamento sobrando, o Roteador faz uma nova rodada (novos `agent.*` e `tool.*`), a resposta refeita é julgada de novo só para registro (`round: 2`) e só ela é transmitida: a resposta reprovada nunca chega ao cliente. Se a revisão falhar ou não couber no orçamento, a resposta original é transmitida depois do veredito. Texto gerado antes de haver evidência (saudação, recusa) segue ao vivo; se um trecho assim já tiver saído e a revisão o substituir, vem `response.reset` antes do novo texto (descarte o acumulado). A retomada com `Last-Event-ID` durante a verificação traz os eventos de revisão e depois só o texto final; `partial_text` e a mensagem da conversa guardam só a resposta final.
 
 ## Retomada (`Last-Event-ID` e `?after=`)
 

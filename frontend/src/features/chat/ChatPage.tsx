@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiProblem, readPage, toProblem } from '../../shared/api'
-import { useDocumentTitle, useMediaQuery, useOnline, useResource } from '../../shared/hooks'
+import { useDocumentTitle, useMediaQuery, useOnline, usePolling, useResource } from '../../shared/hooks'
 import { Icon } from '../../shared/icons'
 import { Modal } from '../../shared/modal'
-import { Button, ButtonLink, DemoChip, ProblemPanel, StatePanel } from '../../shared/ui'
+import { Button, ButtonLink, ProblemPanel, StatePanel } from '../../shared/ui'
 import { MenuButton } from '../../app/Shell'
 import { useConversations } from '../../app/conversations'
 import { Composer } from './Composer'
 import { saveDraft } from './drafts'
 import { readEvidence } from './evidence'
-import { AssistantBubble, UserBubble } from './MessageView'
-import { buildSteps, byline, isTerminalStatus, phaseOf, PHASE_LIVE_TEXT, readRunInfo, type Phase } from './runs'
+import { AssistantBubble, HandoffBanner, OperatorBubble, SystemNotice, UserBubble } from './MessageView'
+import { buildSteps, byline, isLivePhase, isTerminalStatus, phaseOf, PHASE_LIVE_TEXT, readRunInfo, type Phase } from './runs'
 import { ScrollArea } from './ScrollArea'
 import { SidePanel, type Tab } from './SidePanel'
-import type { ChatMessage, Conversation, StartedRun } from './types'
+import type { ChatMessage, Conversation, CustomerHandoff, StartedRun } from './types'
 import { useRunStream } from './useRunStream'
 import './chat.css'
 
@@ -33,8 +33,9 @@ const titleFrom = (text: string) => {
   const line = text.split('\n')[0].trim()
   return line.length > 60 ? `${line.slice(0, 57)}…` : line || 'Nova conversa'
 }
+const HANDOFF_POLL_MS = 3000
+const readMessages = (raw: unknown) => ({ items: readPage<ChatMessage>(raw).items, handoff: ((raw as { handoff?: CustomerHandoff | null } | null)?.handoff ?? null) })
 const statusPhase = (s?: string): Phase => (s === 'failed' || s === 'cancelled' || s === 'interrupted' ? s : 'completed')
-const isLivePhase = (p: Phase) => p === 'waiting' || p === 'routing' || p === 'running' || p === 'generating'
 
 interface Sent { id: string; conversationId: string; text: string }
 
@@ -63,8 +64,11 @@ export default function ChatPage() {
 
   /* ----- mensagens da conversa aberta ----- */
   const messagesRes = useResource(conversationId ? `msgs:${conversationId}` : null, async (signal) =>
-    readPage<ChatMessage>(await api(`/conversations/${conversationId}/messages`, { signal })).items)
-  const messages = messagesRes.data ?? []
+    readMessages(await api(`/conversations/${conversationId}/messages`, { signal })))
+  const messages = messagesRes.data?.items ?? []
+  // modo humano: sem SSE, as mensagens do atendente chegam por polling enquanto houver protocolo ativo
+  const handoff = messagesRes.data?.handoff ?? null
+  usePolling(messagesRes.reload, HANDOFF_POLL_MS, handoff !== null)
   const convRef = useRef(conversationId)
   useLayoutEffect(() => { convRef.current = conversationId })
 
@@ -87,8 +91,9 @@ export default function ChatPage() {
       // o assistente é persistido logo depois do evento terminal: tenta algumas vezes
       for (let i = 0; i < 4; i++) {
         try {
-          const rows = readPage<ChatMessage>(await api(`/conversations/${convId}/messages`)).items
-          if (convRef.current === convId) messagesRes.setData(rows)
+          const page = readMessages(await api(`/conversations/${convId}/messages`))
+          const rows = page.items
+          if (convRef.current === convId) messagesRes.setData(page)
           if (rows.some((m) => m.role === 'assistant' && m.run_id === runId)) break
         } catch { break }
         await new Promise((r) => setTimeout(r, 700))
@@ -99,7 +104,7 @@ export default function ChatPage() {
   const live = useRunStream(tracked, true, reloadAfterRun)
   const livePhase = phaseOf(live.state, live.info?.status)
   const busy = tracked !== null && isLivePhase(livePhase)
-  const listStatus = tracked ? (livePhase === 'waiting' || livePhase === 'routing' || livePhase === 'running' || livePhase === 'generating' ? 'running' : livePhase) : undefined
+  const listStatus = tracked ? (isLivePhase(livePhase) ? 'running' : livePhase) : undefined
   useEffect(() => { setLive({ id: conversationId, status: listStatus }) }, [conversationId, listStatus, setLive])
   const [stopping, setStopping] = useState<string | null>(null)
 
@@ -152,6 +157,13 @@ export default function ChatPage() {
       })
       intent.current = null
       saveDraft(convId, '')
+      if (run.run_id === null) {
+        // with_operator: a mensagem foi guardada para o atendente; só recarrega a conversa
+        if (convId !== conversationId) navigate(`/conversas/${convId}`, { replace: true })
+        else messagesRes.reload()
+        list.reload()
+        return true
+      }
       setSent({ id: run.run_id, conversationId: convId, text })
       setPicked(null); setStopping(null); setNonce((n) => n + 1)
       if (convId !== conversationId) navigate(`/conversas/${convId}`, { replace: true })
@@ -163,6 +175,14 @@ export default function ChatPage() {
       if (convId && convId !== conversationId) navigate(`/conversas/${convId}`, { replace: true })
       return false
     }
+  }
+
+  const [leaving, setLeaving] = useState(false)
+  const leaveQueue = async () => {
+    setLeaving(true)
+    try { await api(`/conversations/${conversationId}/handoff/cancel`, { method: 'POST' }) }
+    catch (e) { setSendError({ problem: toProblem(e), text: '' }) }
+    finally { setLeaving(false); messagesRes.reload() }
   }
 
   const stop = async () => {
@@ -185,7 +205,8 @@ export default function ChatPage() {
   const steps = tracked ? buildSteps(live.state, livePhase) : []
   const announce = tracked ? (isLivePhase(livePhase) ? steps.find((s) => s.status === 'running')?.title ?? PHASE_LIVE_TEXT[livePhase] : PHASE_LIVE_TEXT[livePhase]) : ''
   const panelByline = panelRun ? byline(panelRun.state.events) : undefined
-  const sendBusy = busy || (sentHere !== null && messagesRes.loading)
+  // o polling do modo humano recarrega a cada 3 s: não pode piscar o estado ocupado do campo
+  const sendBusy = busy || (sentHere !== null && messagesRes.loading && handoff === null)
 
   let body: ReactNode
   if (conversationId && messagesRes.problem && messagesRes.data === undefined) {
@@ -203,6 +224,8 @@ export default function ChatPage() {
       <>
         {messages.map((m) => m.role === 'user'
           ? <UserBubble key={m.id} text={m.content} at={m.created_at} />
+          : m.role === 'operator' ? <OperatorBubble key={m.id} text={m.content} name={m.author_name} at={m.created_at} />
+          : m.role === 'system' ? <SystemNotice key={m.id} text={m.content} />
           : <AssistantBubble key={m.id} phase={statusPhase(m.status)} text={m.content} at={m.created_at} runId={m.run_id}
               byline={m.agent_name ?? (m.run_id && m.run_id === panelRun?.runId ? panelByline : undefined)}
               requestId={m.request_id ?? (m.run_id === tracked ? live.state.failure?.requestId : undefined)}
@@ -232,10 +255,10 @@ export default function ChatPage() {
           <div className="head-title">
             <MenuButton />
             <h1 id="chat-title" className="chat__title" title={title}>{title}</h1>
-            <DemoChip />
           </div>
           <Button icon="clock" aria-expanded={panelOpen} aria-controls="painel-lateral" onClick={() => setPanelPref(!panelOpen)}>Andamento</Button>
         </header>
+        {handoff && <HandoffBanner handoff={handoff} onLeave={() => void leaveQueue()} leaving={leaving} />}
         {live.reconnecting && tracked && (
           <div role="status" className="banner" style={{ gap: 8 }}>
             <Icon name="wifiOff" size={14} /><span>Reconectando… O texto recebido foi mantido.</span>
@@ -243,7 +266,7 @@ export default function ChatPage() {
           </div>
         )}
         <ScrollArea version={`${messages.length}|${liveText.length}|${livePhase}|${showOptimistic}|${live.reconnecting}|${sendError ? 1 : 0}`} nonce={nonce}>
-          <div className="chat__thread"><div className="demo-row"><DemoChip /></div>{body}</div>
+          <div className="chat__thread">{body}</div>
         </ScrollArea>
         {sendError && (
           <div role="alert" className="banner banner--danger chat__error">

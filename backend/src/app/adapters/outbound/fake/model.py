@@ -14,6 +14,10 @@ from app.domain.models import ModelEvent
 
 ANSWER = ('Resposta simulada pelo provedor de testes de carga: nenhum modelo real foi chamado e o conteúdo não é '
           'orientação da Getnet. Prazos e condições variam conforme a modalidade [1]. ') * 2
+APPROVED = json.dumps({'verdict': 'aprovar', 'scores': {'fundamentacao': 2, 'cobertura': 2, 'limitacoes': 2, 'seguranca': 2}, 'issues': []})
+REVISED = json.dumps({'verdict': 'revisar', 'scores': {'fundamentacao': 1, 'cobertura': 2, 'limitacoes': 2, 'seguranca': 2},
+                      'issues': ['Revisão simulada: cite a fonte de cada afirmação.']})
+REVISE_MARK = '#revisar'
 CHUNK = {'chunk_id': 'fake-1', 'source_id': 'fake', 'title': 'Trecho simulado', 'heading': None, 'text': 'Conteúdo simulado para teste de carga.',
          'source_url': 'https://exemplo.invalid/simulado', 'retrieved_on': '2026-01-01', 'limitations': ['Conteúdo simulado.'],
          'document_type': 'curated_summary', 'index_version': 'fake', 'score': 1.0}
@@ -40,9 +44,18 @@ class FakeModel:
 
     def __init__(self, settings: FakeModelSettings | None = None):
         self.cfg = settings or get_fake_settings()
+        self._reviewed: set[str] = set()
 
-    async def stream(self, *, model, instructions, inputs, tools, max_output_tokens=None):
+    async def stream(self, *, model, instructions, inputs, tools, max_output_tokens=None, response_schema=None):
         await asyncio.sleep(self.cfg.first_token_ms / 1000)
+        if response_schema:  # reviewer: approves, except the first look at a question marked #revisar (to demo a revision)
+            content = str(inputs[0].get('content', '')) if inputs else ''
+            key = content.split('"resposta"')[0]  # the question part of the review input
+            revise = REVISE_MARK in key and key not in self._reviewed
+            self._reviewed.add(key)
+            yield ModelEvent('text_delta', text=REVISED if revise else APPROVED)
+            yield ModelEvent('completed', data={'id': uuid4().hex, 'usage': None, 'output': []})
+            return
         names = {tool['name']: tool for tool in tools}
         answered = any(item.get('type') == 'function_call_output' for item in inputs)
         task = str(inputs[0].get('content', ''))[:500]

@@ -28,11 +28,11 @@ Monólito modular. A dependência segue `adapters → application → domain`; n
 
 | Camada | Conteúdo | Observação |
 |---|---|---|
-| `domain/` | `models` (Agent, ModelEvent), `graph` (validação de grafo), `agents` (rascunhos, versões, diff, detecção de segredo), `evidence` (citações `[n]`), `knowledge` (chunking, hashes, versão de índice), `pricing` (tabela versionada), `support`, `identity`, `errors` | Sem SDK, FastAPI nem Mongo. `tests/test_architecture.py` falha se um import proibido aparecer. |
-| `application/ports` | `ModelGateway` (stream e embed), portas de suporte, de coleta de páginas (`Fetcher`) e da fila | Protocolos; os adapters os satisfazem. |
-| `application/use_cases` | `orchestrator`, `tools`, `guardrails`, `evidence`, `support`, `agents` (administração), `ingest_sources`, `ingest_curated`, `ingestion_jobs`, `knowledge_catalog` | Regras de execução, autorização e ingestão, sem HTTP nem banco. |
+| `domain/` | `models` (Agent, ModelEvent), `graph` (validação de grafo), `agents` (rascunhos, versões, diff, detecção de segredo), `evidence` (citações `[n]`), `knowledge` (chunking, hashes, versão de índice), `pricing` (tabela versionada), `support`, `identity`, `errors`, `review` (veredito do Revisor), `handoff` (estados do protocolo) | Sem SDK, FastAPI nem Mongo. `tests/test_architecture.py` falha se um import proibido aparecer. |
+| `application/ports` | `ModelGateway` (stream e embed), portas de suporte, de coleta de páginas (`Fetcher`) e da fila, e `attendance` (protocolos e mensagens do atendimento humano) | Protocolos; os adapters os satisfazem. |
+| `application/use_cases` | `orchestration/` (`orchestrator`, `tools`, `guardrails`, `evidence`), `knowledge/` (`ingest_sources`, `ingest_curated`, `ingestion_jobs`, `knowledge_catalog`), e na raiz `support`, `agents` (administração), `attendance` (assumir, responder, encerrar, cliente sair da fila), `curation` (agregação dos vereditos) | Regras de execução, autorização e ingestão, sem HTTP nem banco. |
 | `adapters/inbound` | `http/` (rotas, erros, identidade, verificador OIDC, execução em segundo plano), `cli/` (`apply_indexes`, `ensure_indexes`, `ingest_urls`, `ingest_curated`), `worker.py` | Entradas. `knowledge_wiring.py` e `run_settings.py` compõem configuração e dependências. |
-| `adapters/outbound` | `mongo/` (conversas, agentes, conhecimento, suporte, fila, seed, índices de busca), `openai/` (gateway e busca web), `web/` (coleta segura e extração de HTML), `fake/` (modelo enlatado para testes de carga, `MODEL_PROVIDER=fake`) | Saídas. |
+| `adapters/outbound` | `mongo/` (conversas, agentes, conhecimento, suporte, fila, protocolos, atendentes, seed, índices de busca), `openai/` (gateway e busca web), `web/` (coleta segura e extração de HTML), `fake/` (modelo enlatado para testes de carga, `MODEL_PROVIDER=fake`) | Saídas. |
 | `bootstrap/` | `settings.py` | Configuração. |
 
 O composition root é `adapters/inbound/http/main.py` (ciclo de vida: cliente Mongo, seed idempotente, índices de conversas, tarefa de manutenção) e `execution.py` (`default_runtime` monta gateway OpenAI, repositório de conhecimento e busca web; os testes trocam `app.state.runtime_factory` por doubles).
@@ -46,13 +46,13 @@ Os agentes são dados (rascunho mais versões publicadas), não código. O seed 
 | `router` | Roteador | `delegate_to_agent` | `support`, `knowledge`, `escalation` | Ponto de entrada. Entende a intenção, delega, consolida e escreve a resposta final no idioma do cliente. Não responde por conta própria sobre dados de cliente nem regras da Getnet. |
 | `support` | Atendimento ao Cliente | `get_receivables`, `get_terminal_status`, `delegate_to_agent` | `knowledge`, `escalation` | Consulta recebíveis e terminais do cliente autenticado; pede orientação de procedimento ao especialista. |
 | `knowledge` | Especialista Getnet | `search_knowledge`, `web_search` | nenhum | Responde com trechos recuperados e citações `[n]`; usa a web só para perguntas gerais e atuais. |
-| `escalation` | Atendimento Humano | `request_human_handoff` | nenhum | Encaminha a um operador humano (pedido explícito, falta de evidência ou solução, assunto sensível), informa o protocolo e marca o fluxo como simulação de demonstração, sem prometer prazo. Tipo `custom`. A ferramenta grava um ticket `aberto` em `handoffs` (identidade do backend, um por execução, resumo com números longos mascarados) e devolve `{protocol, status, expected_contact}`. |
+| `escalation` | Atendimento Humano | `request_human_handoff` | nenhum | Encaminha a um operador humano quando o cliente pede ou aceita o atendente (os demais agentes oferecem o atendente quando falta evidência ou solução, ou em assunto sensível), informa o protocolo e diz que um atendente continua a conversa no chat, sem prometer prazo. Tipo `custom`. A ferramenta grava um ticket `aberto` em `handoffs` (identidade do backend, um por execução, resumo com números longos mascarados) e devolve `{protocol, status, expected_contact}`. |
 
 Grafo inicial: `router → {support, knowledge, escalation}`, `support → {knowledge, escalation}`, `knowledge → {}`, `escalation → {}`. O modelo de cada agente é `OPENAI_MODEL` no momento do seed; cada agente pode ter `limits` próprios (`max_output_tokens` por chamada, `max_tool_calls` por execução).
 
-Cada agente recebe: as instruções cadastradas, a data e hora atuais (America/Sao_Paulo e UTC), o catálogo de destinos permitidos (id, nome, descrição), as regras de segurança e, conforme as ferramentas, regras de delegação, de dados de suporte e de evidência (`application/use_cases/guardrails.py`). Os prompts completos estão em `seed.py` e são versionados como prompts publicados.
+Cada agente recebe: as instruções cadastradas, a data e hora atuais (America/Sao_Paulo e UTC), o catálogo de destinos permitidos (id, nome, descrição), as regras de segurança e, conforme as ferramentas, regras de delegação, de dados de suporte e de evidência (`application/use_cases/orchestration/guardrails.py`). Os prompts completos estão em `seed.py` e são versionados como prompts publicados.
 
-Cinco ferramentas conhecidas (`domain/graph.py::KNOWN_TOOLS`). Definições estritas (`strict: true`, `additionalProperties: false`) em `application/use_cases/tools.py`; o README lista os esquemas.
+Cinco ferramentas conhecidas (`domain/graph.py::KNOWN_TOOLS`). Definições estritas (`strict: true`, `additionalProperties: false`) em `application/use_cases/orchestration/tools.py`; o README lista os esquemas.
 
 ## 4. Orquestração
 
@@ -88,6 +88,20 @@ Limites padrão (variáveis em `.env.example`):
 | Execuções ativas por workspace | 20 | `MAX_ACTIVE_RUNS` |
 
 São salvaguardas ajustáveis, não garantia de qualidade. O orçamento de tokens é conferido depois da chamada: uma única chamada pode ultrapassá-lo antes de ser detectada (o teto por chamada do agente, `limits.max_output_tokens`, é enviado ao provedor).
+
+### Revisor e replanejamento
+
+O Revisor é um agente do grafo (`kind: reviewer`), versionado e editável como os outros, sem ferramentas nem destinos; `check_graph` recusa delegação a ele. Ele não depende de o Roteador decidir chamá-lo: o orquestrador o chama depois da resposta final do Roteador quando houve evidência recuperada ou ferramenta de dados do cliente (recusas, saudações e encaminhamento humano passam direto, com `review.completed` `skipped`).
+
+1. **Entrada.** Pergunta, resposta, evidências do livro (id, título, seção, texto até 2000 caracteres; nas fontes web, o texto que a busca web devolveu ao agente), citações inválidas e números sem citação (o mesmo detector da avaliação, em `domain/review.py`), tudo embrulhado como dado não confiável. O histórico da conversa fica de fora.
+2. **Saída estruturada.** `ModelGateway.stream(response_schema=...)`: o gateway OpenAI pede `text.format` `json_schema` estrito; o servidor valida de novo (enum, notas 0 a 2). Fora do esquema vira falha da revisão.
+3. **Replanejamento.** Com `revisar`, o Roteador roda mais uma vez com a resposta anterior e os problemas como entrada interna, no mesmo `state` (limites somam) e no mesmo livro de evidências (números de citação estáveis). Pode delegar e buscar de novo. A rodada só acontece se o orçamento de tokens comporta outra resposta do mesmo tamanho e resta mais de 20% do tempo; senão, `revision: skipped_budget`. Teto de uma revisão (`ExecutionLimits.max_revisions`). A segunda resposta é julgada só para registro.
+4. **Falha aberta.** Erro do modelo, esquema inválido ou tempo esgotado (o Revisor para 1 s antes do prazo da execução) viram `verdict: failed` e a resposta do Roteador é entregue. Se a nova rodada falhar, a primeira resposta é entregue.
+5. **Registro.** `runs.review = {rounds, revision}`, o payload de `run.completed` e as métricas `getnet.review.*`.
+
+**Texto retido até o veredito.** Assim que a execução tem evidência ou dados do cliente, o texto da raiz deixa de ser transmitido ao vivo e é entregue só depois do veredito: a resposta aprovada, a refeita, ou a original quando a revisão falha ou não cabe no orçamento. O cliente nunca lê uma resposta reprovada. O custo é o tempo de um julgamento (cerca de 2 a 4 s) antes de o texto aparecer, coberto pelo andamento no chat ("Verificando a resposta"). Saudações e recusas, sem evidência, continuam ao vivo. A primeira versão transmitia e trocava depois; foi revista porque o cliente chegava a ler texto reprovado.
+
+**Curadoria.** Cada rodada guarda os agentes que participaram e as fontes recuperadas, e a execução guarda as buscas na base que voltaram vazias. `GET /api/v1/curation/reviews?days=N` (só admin, por workspace) agrega isso numa função pura (`use_cases/curation.py`), sem chamar o modelo: critérios que mais falham, taxa de revisão por agente, consultas sem evidência (lacunas da base), exemplos revisados e sugestões por regra fixa (fundamentação aponta busca e instrução de citar; cobertura e limitações apontam instruções; segurança aponta guardrails). A tela "Curadoria" mostra o resultado.
 
 ### Snapshot por execução
 
@@ -142,10 +156,13 @@ Banco `getnet_support` (`MONGO_DATABASE`). Toda consulta privada filtra por `wor
 | `knowledge_sources` | Catálogo (20 fontes) e estado do último índice válido | único `(workspace_id, source_id)` |
 | `knowledge_chunks` | Um documento por chunk, com `embedding` | único `(workspace_id, chunk_id)`; `(workspace_id, source_id, chunk_index)`; índices de busca `knowledge_text` e `knowledge_vector` |
 | `ingestion_jobs` | Fila durável com lease, tentativas e fases | único `(workspace_id, id)`; `(workspace_id, created_at desc)`; `(status, available_at)` |
-| `handoffs` | Tickets de atendimento humano (simulação): `protocol`, `workspace_id`, `user_id`, `conversation_id`, `run_id`, `reason`, `summary`, `status` (`aberto`), datas UTC | único `protocol`; único parcial `(workspace_id, run_id)` (um ticket por execução) |
+| `handoffs` | Protocolos de atendimento humano: `protocol`, `workspace_id`, `user_id`, `conversation_id`, `run_id`, `reason`, `summary`, `status` (`aberto`, `em_atendimento`, `encerrado`), `active` (enquanto não encerrado), `operator`, `resolution`, `timeline` (trilha só de acréscimo: aberto, mensagens, assumido, notas, encerrado), datas UTC | único `protocol`; único parcial `(workspace_id, run_id)` (um por execução); único parcial `(workspace_id, conversation_id)` com `active: true` (um ativo por conversa); `(workspace_id, status, created_at)` |
+| `operators` | Atendentes de demonstração (só `local-demo`): `id`, `name`, `email`, `workspace_id`, sal e hash `scrypt` da senha | único `email` |
 | `receivables`, `terminals` | Dados fictícios de demonstração | único `(workspace_id, user_id, id)` |
 
 Os índices de busca (Atlas Search/Vector Search) não vão em `mongodump`; recrie-os depois de um restore (veja [operacao.md](operacao.md)).
+
+**Modo humano.** O protocolo é a fonte única do atendimento humano: a conversa está com uma pessoa se existe protocolo com `active: true`. O desvio acontece no ponto de entrada (`POST /chat` e `POST /conversations/{id}/runs`), antes de criar a execução; as transições usam `find_one_and_update` com o estado esperado no filtro, e cada ação acrescenta o evento à `timeline` na mesma atualização. Ao encerrar, `active` é removido e a próxima mensagem volta ao Roteador; `conversation_history` envia as falas do atendente como turnos do assistente com o prefixo `[Atendente <nome>]` e ignora os avisos de sistema. Enquanto ninguém assumiu, o cliente pode sair da fila (`POST /conversations/{id}/handoff/cancel`): o protocolo é encerrado e a conversa volta ao Roteador; depois de assumido, só o atendente encerra. As regras ficam em `AttendanceService` (`application/use_cases/attendance.py`); as rotas só convertem HTTP e o código de erro em status.
 
 ## 8. Conhecimento: ingestão e recuperação em detalhe
 
@@ -163,7 +180,7 @@ Os índices de busca (Atlas Search/Vector Search) não vão em `mongodump`; recr
 
 **Recuperação** (`MongoKnowledgeRepository.hybrid_search`): duas consultas em paralelo, ambas filtradas por `workspace_id` e `embedding_model` (embeddings de modelos diferentes nunca se misturam): `$vectorSearch` no índice `knowledge_vector` (cosseno, 1536 dimensões, `numCandidates = max(100, 10 × busca)`) e `$search` no índice `knowledge_text` (analisador `lucene.portuguese` em título, seção e texto). Cada uma devolve `max(2 × limite, 10)` candidatos; a fusão é reciprocal rank fusion com `k = 60`, chaveada por `chunk_id`, e devolve 5 trechos. O `score` é uma pontuação de posição, não uma probabilidade de acerto.
 
-**Evidências** (`application/use_cases/evidence.py`). Cada trecho ou fonte web ganha um `evidence_id` único na execução (não reinicia a cada busca). O modelo recebe o trecho com `cite_as: "[n]"`; os eventos carregam só `evidence_id, kind, title, url, retrieved_on` (nunca o texto). No fim, `resolve()` extrai as citações `[n]` (1 a 3 dígitos, para não confundir com anos) e separa válidas (foram recuperadas na execução) de inválidas. `run_evidence` guarda tudo recuperado com a marca `cited`; `GET /runs/{id}/evidence` expõe `retrieved`, `cited` e `invalid_citations`. A resposta persistida só traz como `sources` as válidas.
+**Evidências** (`application/use_cases/orchestration/evidence.py`). Cada trecho ou fonte web ganha um `evidence_id` único na execução (não reinicia a cada busca). O modelo recebe o trecho com `cite_as: "[n]"`; os eventos carregam só `evidence_id, kind, title, url, retrieved_on` (nunca o texto). No fim, `resolve()` extrai as citações `[n]` (1 a 3 dígitos, para não confundir com anos) e separa válidas (foram recuperadas na execução) de inválidas. `run_evidence` guarda tudo recuperado com a marca `cited`; `GET /runs/{id}/evidence` expõe `retrieved`, `cited` e `invalid_citations`. A resposta persistida só traz como `sources` as válidas.
 
 ## 9. Correlação, uso e custo
 

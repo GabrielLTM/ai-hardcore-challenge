@@ -50,12 +50,14 @@ async def test_seed_publishes_initial_graph_with_pinned_versions(db):
     assert graph_version == '1'
     assert {a.id: (a.name, a.version, a.model) for a in agents.values()} == {
         'router': ('Roteador', 1, 'gpt-test'), 'support': ('Atendimento ao Cliente', 1, 'gpt-test'),
-        'knowledge': ('Especialista Getnet', 1, 'gpt-test'), 'escalation': ('Atendimento Humano', 1, 'gpt-test')}
+        'knowledge': ('Especialista Getnet', 1, 'gpt-test'), 'escalation': ('Atendimento Humano', 1, 'gpt-test'),
+        'reviewer': ('Revisor', 1, 'gpt-test')}
     assert agents['router'].delegates == ('support', 'knowledge', 'escalation') and agents['support'].delegates == ('knowledge', 'escalation')
     assert agents['knowledge'].delegates == () and agents['knowledge'].tools == ('search_knowledge', 'web_search')
     assert 'delegate_to_agent' in agents['support'].tools and agents['router'].kind.value == 'router'
     assert '[n]' in agents['knowledge'].instructions and 'Pix' in agents['knowledge'].instructions
-    assert await db.prompt_versions.count_documents({}) == 4 and await db.audit_events.count_documents({'actor': 'system'}) == 4
+    assert agents['reviewer'].kind.value == 'reviewer' and agents['reviewer'].tools == () and agents['reviewer'].delegates == ()
+    assert await db.prompt_versions.count_documents({}) == 5 and await db.audit_events.count_documents({'actor': 'system'}) == 5
 
 
 async def test_seed_support_data_is_demo_and_relative_to_today(db):
@@ -84,7 +86,7 @@ async def test_seed_upgrades_legacy_documents_without_revision(db):
     await db.agents.insert_one({'id': 'router', 'workspace_id': 'demo', 'name': 'Orquestrador', 'status': 'published', 'version': 1})
     await seed_demo(db, SETTINGS)
     assert (await db.agents.find_one({'id': 'router'}))['name'] == 'Roteador'
-    assert await db.agents.count_documents({}) == 4 and len((await load_published_snapshot(db, 'demo'))[1]) == 4
+    assert await db.agents.count_documents({}) == 5 and len((await load_published_snapshot(db, 'demo'))[1]) == 5
 
 
 async def test_draft_edits_do_not_touch_the_published_configuration(svc, db):
@@ -118,8 +120,8 @@ async def test_publish_creates_versions_and_a_new_graph_snapshot_without_rewriti
     assert (done['version'], done['prompt_version'], done['graph_version']) == (2, 2, '2')
     assert done['agent']['status'] == 'published' and not done['agent']['has_unpublished_changes']
     assert await db.agent_versions.find_one({'agent_id': 'support', 'version': 1}) == old_support  # immutable
-    assert (await db.graph_versions.find_one({'version': 1}))['nodes'] == {'router': 1, 'support': 1, 'knowledge': 1, 'escalation': 1}
-    assert (await db.graph_versions.find_one({'version': 2}))['nodes'] == {'router': 1, 'support': 2, 'knowledge': 1, 'escalation': 1}
+    assert (await db.graph_versions.find_one({'version': 1}))['nodes'] == {'router': 1, 'support': 1, 'knowledge': 1, 'escalation': 1, 'reviewer': 1}
+    assert (await db.graph_versions.find_one({'version': 2}))['nodes'] == {'router': 1, 'support': 2, 'knowledge': 1, 'escalation': 1, 'reviewer': 1}
     graph_version, agents = await load_published_snapshot(db, 'demo')
     assert graph_version == '2' and agents['support'].version == 2 and agents['router'].version == 1
     history = await svc.versions(WHO, 'support', limit=10, cursor=None)
@@ -303,10 +305,10 @@ async def test_list_filters_search_and_paginates_in_a_stable_order(svc):
     page = await svc.list_agents(WHO, q=None, kind=None, status=None, limit=4, cursor=None)
     assert [a['id'] for a in page['items']] == ['router', 'support', 'knowledge', 'escalation'] and page['next_cursor']
     rest = await svc.list_agents(WHO, q=None, kind=None, status=None, limit=4, cursor=page['next_cursor'])
-    assert [a['id'] for a in rest['items']] == ids and rest['next_cursor'] is None
+    assert [a['id'] for a in rest['items']] == ['reviewer', *ids] and rest['next_cursor'] is None
     assert [a['id'] for a in (await svc.list_agents(WHO, q='getnet', kind=None, status=None, limit=10, cursor=None))['items']] == ['knowledge']
     assert [a['id'] for a in (await svc.list_agents(WHO, q=None, kind='support', status=None, limit=10, cursor=None))['items']] == ['support']
     drafts = await svc.list_agents(WHO, q=None, kind=None, status='draft', limit=10, cursor=None)
     assert [a['id'] for a in drafts['items']] == ids and all(a['status'] == 'draft' and a['version'] is None for a in drafts['items'])
-    assert len((await svc.list_agents(WHO, q=None, kind=None, status='published', limit=10, cursor=None))['items']) == 4
+    assert len((await svc.list_agents(WHO, q=None, kind=None, status='published', limit=10, cursor=None))['items']) == 5
     assert (await svc.list_agents(WHO, q='.*', kind=None, status=None, limit=10, cursor=None))['items'] == []  # regex is escaped

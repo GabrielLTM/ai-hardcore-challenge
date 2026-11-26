@@ -10,8 +10,8 @@ from openai import AsyncOpenAI
 from pymongo import AsyncMongoClient
 from app.adapters.inbound.knowledge_wiring import build_pipeline, get_knowledge_settings, prepare_storage
 from app.adapters.outbound.mongo.ingestion_jobs import MongoIngestionJobs
-from app.application.use_cases.ingestion_jobs import process_next
-from app.application.use_cases.knowledge_catalog import load_catalog
+from app.application.use_cases.knowledge.ingestion_jobs import process_next
+from app.application.use_cases.knowledge.knowledge_catalog import load_catalog
 from app.bootstrap.settings import get_settings
 from app.domain.knowledge import OFFICIAL
 

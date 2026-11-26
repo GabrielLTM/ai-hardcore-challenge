@@ -2,6 +2,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.adapters.inbound.http.errors import ApiError
+from app.adapters.inbound.http.operator_auth import is_operator_session
 from app.bootstrap.settings import Settings, get_settings
 from app.domain.identity import Identity
 
@@ -23,11 +24,16 @@ async def current_identity(request: Request, credentials: Annotated[HTTPAuthoriz
     """
     settings = get_settings()
     if settings.app_profile == 'local-demo':
+        if credentials and is_operator_session(credentials.credentials):
+            raise ApiError(403, 'forbidden', 'A sessão de atendente só vale na área do atendente.')
         return demo_identity(settings)
     verifier = getattr(request.app.state, 'oidc', None)
     if verifier is None:
         raise ApiError(503, 'service_unavailable', 'Autenticação de produção indisponível.')
-    return await verifier.authenticate(credentials.credentials if credentials else None)
+    identity = await verifier.authenticate(credentials.credentials if credentials else None)
+    if identity.role == 'attendant':
+        raise ApiError(403, 'forbidden', 'A sessão de atendente só vale na área do atendente.')
+    return identity
 
 
 Who = Annotated[Identity, Depends(current_identity)]

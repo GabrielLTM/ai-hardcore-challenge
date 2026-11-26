@@ -14,3 +14,6 @@ exports/
 backend/evaluation/reports/
 Atendimento multiagente Getnet*.html
 docs/demo.md
+*.egg-info/
+output/
+tmp/

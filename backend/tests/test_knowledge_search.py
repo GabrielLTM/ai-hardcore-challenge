@@ -53,6 +53,15 @@ async def test_both_searches_filter_by_workspace_and_embedding_model():
     assert {'equals': {'path': 'embedding_model', 'value': 'm-1'}} in lexical['compound']['filter']
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode, stage', [('vector', '$vectorSearch'), ('text', '$search')])
+async def test_single_mode_runs_one_pipeline_and_keeps_its_order(mode, stage):
+    repo, collection = repository([chunk('a#0'), chunk('b#0')], [chunk('b#0'), chunk('a#0')])
+    results = await repo.hybrid_search('ws', 'pix', None if mode == 'text' else [0.1], limit=1, mode=mode)
+    assert [list(p[0]) for p in collection.pipelines] == [[stage]]
+    assert [r['chunk_id'] for r in results] == (['a#0'] if mode == 'vector' else ['b#0'])
+
+
 def test_rrf_dedupes_by_chunk_not_by_source_and_respects_limit():
     fused = rrf_fuse([[chunk('a#0', 's'), chunk('a#1', 's')], [chunk('a#1', 's')]], limit=1)
     assert [d['chunk_id'] for d in fused] == ['a#1']

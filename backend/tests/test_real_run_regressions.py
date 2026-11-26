@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace as NS
 from app.adapters.outbound.openai.web import OpenAIWebSearch
-from app.application.use_cases.guardrails import build_instructions
+from app.application.use_cases.orchestration.guardrails import build_instructions
 
 
 async def test_web_keeps_provider_data_source_without_url():
@@ -24,7 +24,7 @@ def test_instructions_carry_local_and_utc_date():
 
 
 async def test_router_receives_conversation_history():
-    from app.application.use_cases.orchestrator import Orchestrator
+    from app.application.use_cases.orchestration.orchestrator import Orchestrator
     from app.domain.identity import Identity
     from app.domain.models import Agent, AgentKind, ModelEvent
 

@@ -13,6 +13,7 @@ const LINKS: { to: string; label: string; icon: IconName }[] = [
   { to: '/conversas', label: 'Conversas', icon: 'chat' },
   { to: '/agentes', label: 'Agentes', icon: 'agents' },
   { to: '/base', label: 'Base de conhecimento', icon: 'doc' },
+  { to: '/curadoria', label: 'Curadoria', icon: 'chart' },
 ]
 
 function SidebarConversations({ onNavigate }: { onNavigate?: () => void }) {

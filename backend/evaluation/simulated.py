@@ -30,7 +30,7 @@ from app.adapters.inbound.http.execution import Runtime  # noqa: E402
 from app.adapters.inbound.http.run_settings import get_run_settings  # noqa: E402
 from app.adapters.outbound.mongo.conversations import MongoConversations  # noqa: E402
 from app.adapters.outbound.mongo.seed import seed_demo  # noqa: E402
-from app.application.use_cases.knowledge_catalog import read_curated_corpus  # noqa: E402
+from app.application.use_cases.knowledge.knowledge_catalog import read_curated_corpus  # noqa: E402
 from app.bootstrap.settings import get_settings  # noqa: E402
 from app.domain.models import ModelEvent  # noqa: E402
 
@@ -108,9 +108,19 @@ class Scenario:
     support: list[Turn] = field(default_factory=list)
     knowledge: list[Turn] = field(default_factory=list)
     escalation: list[Turn] = field(default_factory=list)
+    reviewer: list[Turn] = field(default_factory=list)  # verdict JSON per round; empty: every round approves
     passages: tuple[str | dict, ...] = ()
     web: dict | None = None
     search_fails: bool = False
+
+
+APPROVE = json.dumps({'verdict': 'aprovar', 'scores': {'fundamentacao': 2, 'cobertura': 2, 'limitacoes': 2, 'seguranca': 2}, 'issues': []})
+
+
+def verdict(verdict: str = 'revisar', issues: tuple[str, ...] = ('Afirmação sem evidência citada.',), **scores: int) -> Turn:
+    """Scripted reviewer turn; unspecified criteria score 2."""
+    full = {c: scores.get(c, 2) for c in ('fundamentacao', 'cobertura', 'limitacoes', 'seguranca')}
+    return say(json.dumps({'verdict': verdict, 'scores': full, 'issues': list(issues)}))
 
 
 def role_of(tools: list[dict]) -> str:
@@ -128,7 +138,7 @@ class ScriptedGateway:
     """ModelGateway double. Token counts are synthetic (characters / 4): they exercise accounting, not a provider bill."""
 
     def __init__(self, scenario: Scenario):
-        self.turns = {role: list(getattr(scenario, role)) for role in ('router', 'support', 'knowledge', 'escalation')}
+        self.turns = {role: list(getattr(scenario, role)) for role in ('router', 'support', 'knowledge', 'escalation', 'reviewer')}
         self.spoke: list[str] = []  # role of each model call, in order
         self.transcript: list[str] = []  # everything the model was shown (the inputs of each call, as JSON)
         self.errors: list[str] = []
@@ -138,9 +148,9 @@ class ScriptedGateway:
         return {role: len(turns) for role, turns in self.turns.items() if turns}
 
     async def stream(self, *, model, instructions, inputs, tools, **extra):
-        role = role_of(tools)
+        role = 'reviewer' if extra.get('response_schema') else role_of(tools)
         try:
-            decision = self.turns[role].pop(0)(Seen(inputs))
+            decision = self.turns[role].pop(0)(Seen(inputs)) if self.turns[role] or role != 'reviewer' else APPROVE
         except Exception as exc:  # a broken script must be visible, not a silent generic failure
             self.errors.append(f'{role}: {type(exc).__name__}: {exc}')
             raise

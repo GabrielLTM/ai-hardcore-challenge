@@ -1,4 +1,5 @@
 """9.3 atomic active-run cap across instances, and conversation keyset pagination (local Mongo; skipped when down)."""
+import os
 import asyncio
 import uuid
 import pytest
@@ -7,7 +8,7 @@ from app.adapters.outbound.mongo.conversations import MongoConversations
 from app.domain.errors import CapacityExceeded
 from app.domain.identity import Identity
 
-URI = 'mongodb://localhost:27017/?directConnection=true'
+URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/?directConnection=true')
 
 
 def _mongo_up() -> bool:

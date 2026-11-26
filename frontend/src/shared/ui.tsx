@@ -48,7 +48,6 @@ export function Chip({ tone = 'neutral', icon, spin, children, className }: { to
     </span>
   )
 }
-export const DemoChip = () => <Chip tone="demo" icon="info">Dados de demonstração</Chip>
 
 /* ---------- Campos com rótulo e erro ---------- */
 interface FieldBase { label: string; error?: string; hint?: string; labelHidden?: boolean }

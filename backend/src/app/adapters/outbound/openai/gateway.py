@@ -10,8 +10,11 @@ class OpenAIModelGateway:
         self.client = client
 
     async def stream(self, *, model: str, instructions: str, inputs: list[dict[str, Any]],
-                     tools: list[dict[str, Any]], max_output_tokens: int | None = None) -> AsyncIterator[ModelEvent]:
+                     tools: list[dict[str, Any]], max_output_tokens: int | None = None,
+                     response_schema: dict[str, Any] | None = None) -> AsyncIterator[ModelEvent]:
         cap = {'max_output_tokens': max_output_tokens} if max_output_tokens else {}
+        if response_schema:
+            cap['text'] = {'format': {'type': 'json_schema', 'name': 'veredito', 'schema': response_schema, 'strict': True}}
         stream = await self.client.responses.create(
             model=model, instructions=instructions, input=inputs, tools=tools, stream=True, **cap
         )

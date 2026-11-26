@@ -1,0 +1,34 @@
+{"id": "ret-01", "query": "Em quais países a Getnet tem presença?", "lang": "pt-BR", "relevant": {"01-visao-global": 2}, "section": "Atuação e soluções"}
+{"id": "ret-02", "query": "Which countries does Getnet operate in?", "lang": "en", "relevant": {"01-visao-global": 2}, "section": "Atuação e soluções"}
+{"id": "ret-03", "query": "Does Getnet offer fraud prevention?", "lang": "en", "relevant": {"01-visao-global": 2, "06-link-pagamento": 1}, "section": "Atuação e soluções"}
+{"id": "ret-04", "query": "Quais maquininhas a Getnet oferece?", "lang": "pt-BR", "relevant": {"02-maquininhas": 2, "03-get-smart": 1}, "section": "Catálogo e pagamentos"}
+{"id": "ret-05", "query": "Get Clássica", "lang": "pt-BR", "relevant": {"02-maquininhas": 2}, "section": "Catálogo e pagamentos"}
+{"id": "ret-06", "query": "Onde acompanho as vendas da minha maquininha?", "lang": "pt-BR", "relevant": {"02-maquininhas": 2, "04-pix-comercial": 1}, "section": "Vendas e contratação"}
+{"id": "ret-07", "query": "Is the card machine rental benefit tied to Get Conta?", "lang": "en", "relevant": {"02-maquininhas": 2}, "section": "Vendas e contratação"}
+{"id": "ret-08", "query": "O que é a GetStore?", "lang": "pt-BR", "relevant": {"03-get-smart": 2}, "section": "Recursos divulgados"}
+{"id": "ret-09", "query": "Como transformar a maquininha em um terminal de autoatendimento?", "lang": "pt-BR", "relevant": {"03-get-smart": 2}, "section": "Recursos divulgados"}
+{"id": "ret-10", "query": "Does the Get Smart integrate with TEF cash register automation?", "lang": "en", "relevant": {"03-get-smart": 2}, "section": "Recursos divulgados"}
+{"id": "ret-11", "query": "dá para dividir o pagamento para pagar comissão e gorjeta?", "lang": "pt-BR", "relevant": {"03-get-smart": 2}, "section": "Recursos divulgados"}
+{"id": "ret-12", "query": "Em quanto tempo o dinheiro de um Pix cai na minha conta?", "lang": "pt-BR", "relevant": {"04-pix-comercial": 2, "05-pix-get-smart": 1}, "section": "Prazo divulgado"}
+{"id": "ret-13", "query": "Pix settlement can take up to one calendar day", "lang": "en", "relevant": {"04-pix-comercial": 2, "05-pix-get-smart": 1}, "section": "Prazo divulgado"}
+{"id": "ret-14", "query": "Qual a diferença de prazo do Pix entre a página comercial e o POS Digital?", "lang": "pt-BR", "relevant": {"04-pix-comercial": 2, "05-pix-get-smart": 2}}
+{"id": "ret-15", "query": "Como habilitar o Pix na Get Smart?", "lang": "pt-BR", "relevant": {"05-pix-get-smart": 2}, "section": "Habilitação"}
+{"id": "ret-16", "query": "Preciso cadastrar uma chave Pix no domicílio bancário?", "lang": "pt-BR", "relevant": {"05-pix-get-smart": 2}, "section": "Habilitação"}
+{"id": "ret-17", "query": "O QR Code sumiu da tela, a venda Pix foi cancelada?", "lang": "pt-BR", "relevant": {"05-pix-get-smart": 2, "09-status-vendas": 1}, "section": "Integração e pendências"}
+{"id": "ret-18", "query": "callerId deeplink Pagamento v3", "lang": "pt-BR", "relevant": {"05-pix-get-smart": 2}, "section": "Integração e pendências"}
+{"id": "ret-19", "query": "Posso vender pelo WhatsApp?", "lang": "pt-BR", "relevant": {"06-link-pagamento": 2}, "section": "Canais e funcionalidades"}
+{"id": "ret-20", "query": "Can I add shipping costs to a payment link?", "lang": "en", "relevant": {"06-link-pagamento": 2}, "section": "Canais e funcionalidades"}
+{"id": "ret-21", "query": "O link de pagamento aceita boleto e carteira digital?", "lang": "pt-BR", "relevant": {"06-link-pagamento": 2}, "section": "Canais e funcionalidades"}
+{"id": "ret-22", "query": "O link de pagamento tem plano mensal ou cobra por link pago?", "lang": "pt-BR", "relevant": {"06-link-pagamento": 2}, "section": "Planos"}
+{"id": "ret-23", "query": "Como antecipar minhas vendas no crédito pelo aplicativo?", "lang": "pt-BR", "relevant": {"07-antecipacao": 2}, "section": "Solicitação"}
+{"id": "ret-24", "query": "Qual o valor mínimo para pedir antecipação?", "lang": "pt-BR", "relevant": {"07-antecipacao": 2}, "section": "Solicitação"}
+{"id": "ret-25", "query": "How do I get paid earlier for my installment card sales?", "lang": "en", "relevant": {"07-antecipacao": 2}, "section": "O que pode ser antecipado"}
+{"id": "ret-26", "query": "Quem define o número de parcelas no crediário?", "lang": "pt-BR", "relevant": {"08-faq-crediario-conexao": 2}, "section": "Crediário"}
+{"id": "ret-27", "query": "chip Algar", "lang": "pt-BR", "relevant": {"08-faq-crediario-conexao": 2}, "section": "Conectividade com chip Algar"}
+{"id": "ret-28", "query": "A maquininha não pega sinal da operadora, como faço o teste de comunicação?", "lang": "pt-BR", "relevant": {"08-faq-crediario-conexao": 2}, "section": "Conectividade com chip Algar"}
+{"id": "ret-29", "query": "Onde consulto as taxas do crédito parcelado?", "lang": "pt-BR", "relevant": {"08-faq-crediario-conexao": 2}, "section": "Consulta comercial"}
+{"id": "ret-30", "query": "O que significa uma venda Desfeita?", "lang": "pt-BR", "relevant": {"09-status-vendas": 2}, "section": "Cartões e demais modalidades descritas"}
+{"id": "ret-31", "query": "Qual a diferença entre venda estornada e cancelada?", "lang": "pt-BR", "relevant": {"09-status-vendas": 2}, "section": "Cartões e demais modalidades descritas"}
+{"id": "ret-32", "query": "What does the Pix status 'Falha no repasse' mean?", "lang": "en", "relevant": {"09-status-vendas": 2}, "section": "Pix"}
+{"id": "ret-33", "query": "O que significa result 3 na integração da Get Smart?", "lang": "pt-BR", "relevant": {"10-resultados-get-smart": 2}, "section": "Códigos de resultado"}
+{"id": "ret-34", "query": "Get Smart integration result code 5 pending Pix", "lang": "en", "relevant": {"10-resultados-get-smart": 2, "05-pix-get-smart": 1}, "section": "Códigos de resultado"}

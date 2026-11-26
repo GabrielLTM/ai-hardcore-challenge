@@ -10,8 +10,10 @@ export interface Conversation {
 }
 export interface ChatMessage {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'operator' | 'system'
   content: string
+  /** Nome do atendente, nas mensagens role=operator. */
+  author_name?: string
   status?: string
   run_id?: string
   created_at?: string
@@ -19,7 +21,10 @@ export interface ChatMessage {
   agent_name?: string
   error?: { code?: string; message?: string }
 }
-export interface StartedRun { conversation_id?: string; run_id: string; status?: string; events_url?: string }
+/** Protocolo ativo da conversa, como o cliente o vê. */
+export interface CustomerHandoff { protocol: string; status: 'aberto' | 'em_atendimento' | 'encerrado'; operator_name?: string | null }
+/** Em modo humano o servidor guarda a mensagem para o atendente: run_id null, status with_operator e nenhum SSE. */
+export interface StartedRun { conversation_id?: string; run_id: string | null; status?: string; events_url?: string; handoff?: CustomerHandoff }
 
 /** Rótulo do chip na lista: só aparece quando a conversa NÃO está concluída. */
 export function conversationChip(c: Conversation, liveStatus?: string): { label: string; tone: 'progress' | 'neutral' | 'warning' | 'danger'; icon: 'spinner' | 'x' | 'alert' } | null {

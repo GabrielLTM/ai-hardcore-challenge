@@ -1,8 +1,8 @@
 """The canned load-test model: same turn structure as a real run, no network, no invented usage or cost."""
 from app.adapters.inbound.http.execution import default_runtime
 from app.adapters.outbound.fake.model import FakeModel, FakeModelSettings
-from app.application.use_cases.orchestrator import Orchestrator
-from app.application.use_cases.tools import make_tools
+from app.application.use_cases.orchestration.orchestrator import Orchestrator
+from app.application.use_cases.orchestration.tools import make_tools
 from app.bootstrap.settings import Settings
 from app.domain.identity import Identity
 from app.domain.models import Agent, AgentKind

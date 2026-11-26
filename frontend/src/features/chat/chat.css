@@ -16,13 +16,11 @@
 .composer { padding: 8px 24px 24px; display: flex; flex-direction: column; gap: 8px; max-width: 928px; width: 100%; margin: 0 auto; }
 .composer__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .composer__actions { display: flex; gap: 8px; align-items: center; }
-.demo-row { display: none; justify-content: center; }
 @media (max-width: 760px) {
   .chat__head { flex-wrap: nowrap; gap: 4px; padding: 4px 8px 4px 4px; background: var(--surface); border-bottom: 1px solid var(--border); min-height: 56px; }
   .chat__head .head-title { flex: 1; min-width: 0; flex-wrap: nowrap; gap: 4px; }
   .chat__head .head-title .chip { display: none; }
   .chat__head .btn { flex: none; }
-  .demo-row { display: flex; }
   .chat__title { font-size: 16px; -webkit-line-clamp: 1; }
   .chat__scroll { padding: 12px; }
   .chat__error { margin: 0 12px; }
@@ -88,3 +86,13 @@
 .source__head h3 { margin: 0; font-size: 14px; font-weight: 600; }
 .source__text { margin: 0; font-size: 13px; color: var(--ink-2); }
 
+
+/* ---------- Atendimento humano ---------- */
+.handoff-banner { margin: 0 24px; border-radius: var(--radius-control); background: var(--demo-bg); color: var(--ink); }
+.handoff-banner svg { color: var(--demo-fg); }
+.handoff-banner__leave { margin-left: auto; }
+.bubble--operator { background: var(--surface); border: 1px solid var(--border-strong); display: flex; flex-direction: column; gap: 8px; max-width: 85%; }
+.bubble__byline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.system-notice { display: flex; justify-content: center; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--ink-3); text-align: center; }
+.system-notice svg { flex: none; }
+@media (max-width: 760px) { .handoff-banner { margin: 0 12px; } }

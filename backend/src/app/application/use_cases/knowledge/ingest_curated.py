@@ -1,7 +1,7 @@
 """Ingest the curated corpus from its manifest; provenance remains attached to every chunk."""
 from pathlib import Path
-from app.application.use_cases.ingest_sources import IngestionPipeline
-from app.application.use_cases.knowledge_catalog import curated_sources, read_curated_corpus  # noqa: F401 (re-export)
+from app.application.use_cases.knowledge.ingest_sources import IngestionPipeline
+from app.application.use_cases.knowledge.knowledge_catalog import curated_sources, read_curated_corpus  # noqa: F401 (re-export)
 
 
 async def ingest_curated(root: Path, gateway, repository, embedding_model: str, workspace_id: str, *,

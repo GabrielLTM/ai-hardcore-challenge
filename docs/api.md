@@ -33,11 +33,9 @@ As ferramentas de suporte leem fixtures marcadas como fictícias (`is_demo: true
 
 ```json
 {
-  "is_demo": true,
   "items": [
     {"sale_date": "2026-11-02", "due_date": "2026-12-02", "amount": "3482.90", "status": "previsto", "payment_type": "credito_a_vista"}
   ],
-  "notice": "Dados fictícios de demonstração, sem integração com sistemas reais da Getnet.",
   "currency": "BRL"
 }
 ```
@@ -46,12 +44,10 @@ As ferramentas de suporte leem fixtures marcadas como fictícias (`is_demo: true
 
 ```json
 {
-  "is_demo": true,
   "items": [
     {"model": "Get Smart (série final 4821)", "connectivity": "sem sinal da operadora (chip Algar)", "error": "Sem sinal da rede móvel",
      "serial_suffix": "4821", "carrier": "Algar", "carrier_signal": false}
-  ],
-  "notice": "Dados fictícios de demonstração, sem integração com sistemas reais da Getnet."
+  ]
 }
 ```
 
@@ -64,7 +60,7 @@ Para qualquer outra identidade a lista vem vazia, com `message` mandando informa
 | `POST /chat` | Compatível com o desafio: envia a mensagem e espera a resposta | `200` ou `202` |
 | `POST /conversations` | Cria conversa | `201` |
 | `GET /conversations` | Lista as conversas do usuário (até 100, mais recentes primeiro) | `200` |
-| `GET /conversations/{conversation_id}/messages` | Histórico ordenado (até 500) | `200` |
+| `GET /conversations/{conversation_id}/messages` | Histórico ordenado (até 500) e `handoff` (`{protocol, status, operator_name}` ou `null`) | `200` |
 | `POST /conversations/{conversation_id}/runs` | Inicia execução assíncrona (cabeçalho `Idempotency-Key` obrigatório) | `202` |
 | `GET /runs/{run_id}` | Estado autoritativo da execução | `200` |
 | `GET /runs/{run_id}/events` | Eventos SSE; `?after=` ou `Last-Event-ID` | `200` |
@@ -89,7 +85,7 @@ curl -s -X POST http://localhost:8000/api/v1/chat \
 {
   "conversation_id": "31de626e17f04b32aa8fea0ed1340db5",
   "run_id": "720ee154bf184368b543c48cc18cadb6",
-  "answer": "O diagnóstico recebido indica **ausência de sinal da rede móvel** na maquininha, com chip Algar. **Atenção: os dados do diagnóstico são fictícios, de demonstração.** … [1][6]",
+  "answer": "O diagnóstico recebido indica **ausência de sinal da rede móvel** na maquininha, com chip Algar. … [1][6]",
   "sources": [
     {"evidence_id": 1, "kind": "official", "title": "Dúvidas frequentes (página oficial)", "url": "https://site.getnet.com.br/duvidas/", "retrieved_on": "2026-11-04"},
     {"evidence_id": 6, "kind": "official", "title": "Dúvidas frequentes (página oficial)", "url": "https://site.getnet.com.br/duvidas/", "retrieved_on": "2026-11-04"}
@@ -153,6 +149,7 @@ Uma conversa executa uma mensagem por vez: com outra chave enquanto a anterior r
   "sources": [{"evidence_id": 1, "kind": "official", "title": "Dúvidas frequentes (página oficial)", "url": "https://site.getnet.com.br/duvidas/", "retrieved_on": "2026-11-04"}],
   "usage": {"input_tokens": 14945, "output_tokens": 1767, "total_tokens": 16712, "cost_usd": null, "pricing_version": "2026-11-03.1"},
   "error": null,
+  "review": {"rounds": [{"agent_id": "reviewer", "round": 1, "verdict": "aprovar", "scores": {"fundamentacao": 2, "cobertura": 2, "limitacoes": 2, "seguranca": 2}, "issues": [], "cost_usd": 0.00041, "duration_ms": 2310}], "revision": "not_needed"},
   "cancel_requested": false,
   "seq": 38,
   "created_at": "2026-11-04T02:11:17.288000Z",
@@ -182,7 +179,38 @@ Estados: `queued`, `running`, `completed`, `failed`, `cancelled`, `interrupted`.
 
 (`retrieved` tem 6 itens nessa execução e `cited` repete os dois citados; o exemplo abrevia ambas as listas.) `invalid_citations` lista números `[n]` do texto que não correspondem a nenhum trecho recuperado, para o cliente não exibi-los como fonte.
 
+`review` aparece quando o grafo tem Revisor: `rounds` traz o veredito de cada rodada (`aprovar`, `revisar` ou `failed`) e `revision` diz se houve nova rodada (`not_needed`, `done`, `skipped_budget`, `failed`). Sem evidência nem ferramenta de dados, `rounds` é vazio. Eventos em [eventos.md](eventos.md).
+
 `POST /runs/{run_id}/cancel` devolve o mesmo corpo de `GET /runs/{run_id}` com o estado real; veja [eventos.md](eventos.md).
+
+### Conversa com atendente humano
+
+Enquanto a conversa tem protocolo `aberto` ou `em_atendimento`, a mensagem do cliente vai para o atendente e não inicia execução: `POST /chat` responde `200` com `{"answer": null, "status": "with_operator", "handoff": {...}}` e `POST /conversations/{id}/runs`, `202` com `run_id: null` e sem `events_url`. Mensagens novas na conversa: `role: "operator"` (com `author_name`) e `role: "system"` (avisos de entrada e encerramento).
+
+## Área do atendente (`/api/v1/operator`)
+
+Sessão: `Authorization: Bearer <token>` devolvido pelo login (perfil `local-demo`, validade de 8 h) ou o token OIDC com o papel `attendant` (perfil `production`). A sessão de atendente recebe `403` nas rotas do cliente e de administração; sem sessão, as rotas abaixo respondem `401`. Protocolos de outro workspace respondem `404`.
+
+| Método e rota | Resumo | Sucesso | Erros |
+|---|---|---|---|
+| `GET /operator/demo-accounts` | Contas de demonstração (nome, e-mail, senha de teste) para a tela de login; só `local-demo` | `200` | `404` fora de `local-demo` |
+| `POST /operator/login` | `{email, password}` → `{token, expires_at, operator}` | `200` | `401 invalid_credentials` (mesma resposta para e-mail inexistente e senha errada); `404` fora de `local-demo` |
+| `GET /operator/handoffs?tab=abertos\|meus\|encerrados` | Fila; abertos do mais antigo ao mais novo; `limit` e `cursor` como nas conversas | `200` | `400 invalid_cursor` |
+| `GET /operator/handoffs/{protocol}` | Protocolo com `timeline`, mensagens da conversa e terminais e recebíveis do cliente do protocolo | `200` | `404 handoff_not_found` |
+| `POST /operator/handoffs/{protocol}/claim` | Assume (atômico: com dois pedidos simultâneos, um vence) | `200` | `409 handoff_already_claimed` (`details.operator_name`); `409 invalid_transition` |
+| `POST /operator/handoffs/{protocol}/messages` | `{content}`; só quem assumiu | `201` | `403 not_handoff_owner`; `409 invalid_transition` |
+| `POST /operator/handoffs/{protocol}/notes` | `{content}`; nota interna, qualquer atendente, nunca vai ao cliente | `201` | `404` |
+| `POST /operator/handoffs/{protocol}/close` | `{resolution}` obrigatório; encerra e devolve a conversa ao Roteador | `200` | `422` sem nota; `403 not_handoff_owner`; `409 invalid_transition` |
+| `POST /conversations/{id}/handoff/cancel` (cliente) | O cliente sai da fila antes de um atendente assumir; o protocolo é encerrado e a conversa volta ao Roteador | `200` | `404 handoff_not_found` sem protocolo ativo; `409 handoff_already_claimed` se um atendente já assumiu |
+
+Estados: `aberto` → `em_atendimento` → `encerrado`, só nessa ordem.
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/operator/login -H 'Content-Type: application/json' \
+  -d '{"email":"ana@atendimento.demo","password":"atendente-demo"}' | jq -r .token)
+curl -s http://localhost:8000/api/v1/operator/handoffs?tab=abertos -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:8000/api/v1/operator/handoffs/ATD-20261123-ABCD/claim -H "Authorization: Bearer $TOKEN"
+```
 
 ## Formato de erro
 
@@ -273,6 +301,26 @@ curl -s -X POST http://localhost:8000/api/v1/agents/$AGENT/publish \
 ```
 
 Publicar um grafo com ciclo responde `409 graph_invalid` com `details.errors` e `details.cycle`; a versão anterior continua ativa. Sem mudanças desde a última publicação: `409 no_changes`. Publicações concorrentes que esgotam as três tentativas de revalidação: `409 graph_conflict`.
+
+## Curadoria do Revisor
+
+`GET /api/v1/curation/reviews?days=7` (só admin; `days` de 1 a 90) agrega os vereditos do Revisor do workspace no período, sem chamar o modelo:
+
+| Campo | Conteúdo |
+|---|---|
+| `runs`, `judged`, `revised`, `skipped`, `failed`, `first_round_approval`, `mean_scores` | Totais do período; critérios e agentes medidos na primeira resposta |
+| `redone`, `fixed` | Quantas respostas tiveram nova versão e em quantas a nova versão foi aprovada |
+| `criteria` | `{criterion, label, below_max, rate}`, do critério que mais falha ao que menos falha |
+| `agents` | `{agent_id, judged, revised, rate}` dos agentes que participaram das respostas julgadas |
+| `empty_searches` | `{query, count, last_at}`: buscas na base que voltaram vazias (lacunas de conteúdo) |
+| `examples` | Respostas revisadas: pergunta, vereditos, notas, critérios reprovados (`failed`), problemas, agentes, fontes sem repetição, `answers` (a primeira versão e a enviada), `run_id` e `conversation_id`. A primeira versão fica no run em `review_answers`, fora do `GET /runs/{id}`: o cliente nunca a vê |
+| `suggestions` | `{kind, criterion, target, text}`: `search`, `prompt`, `guardrail` ou `knowledge` |
+
+```bash
+curl -s 'http://localhost:8000/api/v1/curation/reviews?days=7'
+```
+
+Quem não é administrador recebe `403` `forbidden`.
 
 ## Base de conhecimento
 

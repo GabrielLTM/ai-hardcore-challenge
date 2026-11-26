@@ -20,12 +20,12 @@ from app.adapters.outbound.mongo.ingestion_jobs import MongoIngestionJobs
 from app.adapters.outbound.mongo.knowledge import MongoKnowledgeRepository
 from app.adapters.outbound.mongo.search_indexes import ensure_search_indexes, wait_queryable
 from app.application.ports.knowledge import LeaseLost
-from app.application.use_cases.ingestion_jobs import process_next
+from app.application.use_cases.knowledge.ingestion_jobs import process_next
 from app.bootstrap.settings import Settings
 from app.domain.identity import Identity
 from knowledge_doubles import LONG, official, page, pipeline, site
 
-URI = 'mongodb://localhost:27017/?directConnection=true'
+URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/?directConnection=true')
 WS = 'demo'
 SOURCE = official()
 CATALOG = {SOURCE['id']: SOURCE}
@@ -372,6 +372,10 @@ async def test_hybrid_search_with_real_indexes_is_scoped_and_traceable(db):
 
     lexical_only = await search_until(repo, 'w1', 'Pix', [0, 0, 1], lambda r: any(d['chunk_id'] == 'pix#0' for d in r))
     assert 'pix#0' in [r['chunk_id'] for r in lexical_only]  # text signal alone retrieves the product by name
+
+    # ablation modes over the same indexes: lexical ignores the vector, vector ignores the words
+    assert [r['chunk_id'] for r in await repo.hybrid_search('w1', 'Pix', None, mode='text')] == ['pix#0']
+    assert [r['chunk_id'] for r in await repo.hybrid_search('w1', 'Pix', [1, 0, 0], mode='vector')] == ['smart#0', 'pix#0']
 
     assert {r['chunk_id'] for r in await repo.hybrid_search('w2', 'Get Smart', [1, 0, 0])} == {'other#0'}
     assert await repo.hybrid_search('w3', 'Get Smart', [1, 0, 0]) == []

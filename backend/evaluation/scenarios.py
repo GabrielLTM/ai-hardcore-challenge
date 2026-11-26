@@ -6,7 +6,7 @@ real curated documents; the web result is simulated and says so.
 """
 from datetime import date
 from decimal import Decimal
-from evaluation.simulated import Scenario, Seen, call, delegate, say
+from evaluation.simulated import Scenario, Seen, call, delegate, say, verdict
 
 _KIND = {'credito_a_vista': 'credit, single payment'}
 UNAVAILABLE_WEB = {'status': 'unavailable', 'answer': '', 'sources': []}
@@ -44,7 +44,7 @@ def receivable_lines(seen: Seen) -> str:
     data = seen.last('get_receivables')
     sales = ' '.join(f"Sale of {br_date(i['sale_date'])} ({_KIND.get(i['payment_type'], i['payment_type'])}): {brl(i['amount'])}, "
                      f"status '{i['status']}', expected credit on {br_date(i['due_date'])}." for i in data['items'])
-    return f"{sales} This is a forecast, not a guarantee of credit." + (' Note: these are fictitious demo data, not connected to real Getnet systems.' if data['is_demo'] else '')
+    return f"{sales} This is a forecast, not a guarantee of credit."
 
 
 def terminal_line(seen: Seen) -> str:
@@ -80,8 +80,7 @@ def advance(s: Seen) -> str:
 
 def decline(s: Seen) -> str:
     return (f"{terminal_line(s)} I do not have transaction data available (no decline code, issuer or sale details), so I cannot tell the cause of the decline. "
-            f"Please send the decline code or message shown on the screen, with the sale date and amount, or contact Getnet support. "
-            f"Note: these terminal data are fictitious demo data.")
+            f"Please send the decline code or message shown on the screen, with the sale date and amount, or contact Getnet support.")
 
 
 def installments(s: Seen) -> str:
@@ -124,12 +123,16 @@ SCENARIOS: dict[str, Scenario] = {
         router=[ask('support', 'Diagnose the terminal and guide the customer.'), say(relay)],
         support=[call('get_terminal_status'),
                  delegate('knowledge', lambda s: f"{terminal_line(s)} What is the procedure to restore the connection with an Algar chip?"),
-                 say(lambda s: f"{terminal_line(s)} {relay(s)} Note: the terminal data are fictitious demo data.")],
+                 say(lambda s: f"{terminal_line(s)} {relay(s)}")],
         knowledge=[call('search_knowledge', query='terminal without signal Algar chip connection procedure'), say(algar_procedure)],
         passages=('08-faq-crediario-conexao',)),
-    'pdf-06-antecipacao': Scenario(
-        router=[ask('knowledge', 'Answer from the knowledge base.'), say(relay)],
-        knowledge=[call('search_knowledge', query='receivables advance antecipação how it works'), say(advance)],
+    'pdf-06-antecipacao': Scenario(  # the Reviewer rejects the first, uncited answer and the router runs one more round
+        router=[ask('knowledge', 'Answer from the knowledge base.'), say(relay),
+                ask('knowledge', 'Answer again from the knowledge base, citing the source of each statement.'), say(relay)],
+        knowledge=[call('search_knowledge', query='receivables advance antecipação how it works'),
+                   say('Advance lets you receive card sales before the due date.'),
+                   call('search_knowledge', query='antecipação de recebíveis como funciona'), say(advance)],
+        reviewer=[verdict(fundamentacao=1, issues=('Afirmação sobre antecipação sem citação da fonte.',)), verdict('aprovar', ())],
         passages=('07-antecipacao',)),
     'pdf-07-euro-rate': Scenario(
         router=[ask('knowledge', 'This is a current-data question: use the web.'), say(relay)],
