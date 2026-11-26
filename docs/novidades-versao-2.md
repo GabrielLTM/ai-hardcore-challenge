@@ -13,13 +13,13 @@ As três lacunas foram tratadas em duas mudanças OpenSpec:
 
 ## Resumo
 
-| Lacuna da devolutiva | Critério (peso, nota) | O que mudou |
-|---|---|---|
-| O atendimento humano termina em ticket | Human Oversight (7%, 6,5) | Área do atendente: fila de protocolos, assumir, conversar com o cliente, encerrar e devolver ao Roteador |
-| Falta crítico com replanejamento guiado pela qualidade | Agentic Reasoning (15%, 8,4) | Agente Revisor julga cada resposta com evidência e pode pedir uma nova rodada ao Roteador |
-| Avaliação semântica menor que a maturidade estrutural | Evaluation (14%, 8,7) | Notas do Revisor por caso no relatório e calibração do próprio Revisor com respostas rotuladas |
-| Faltam métricas formais de retrieval | Evaluation (14%, 8,7) | Recall@K, MRR e nDCG em 34 consultas rotuladas, com comparação entre busca vetorial, textual e híbrida |
-| Latência e custo do fluxo agentic | Observability (6%, 9,6) | O Revisor só roda quando há evidência; painéis de duração, custo e taxa de revisão |
+| Lacuna da devolutiva | O que mudou |
+|---|---|
+| O atendimento humano termina em ticket | Área do atendente: fila de protocolos, assumir, conversar com o cliente, encerrar e devolver ao Roteador |
+| Falta crítico com replanejamento guiado pela qualidade | Agente Revisor julga cada resposta com evidência e pode pedir uma nova rodada ao Roteador |
+| Avaliação semântica menor que a maturidade estrutural | Notas do Revisor por caso no relatório e calibração do próprio Revisor com respostas rotuladas |
+| Faltam métricas formais de retrieval | Recall@K, MRR e nDCG em 34 consultas rotuladas, com comparação entre busca vetorial, textual e híbrida |
+| Latência e custo do fluxo agentic | O Revisor só roda quando há evidência; painéis de duração, custo e taxa de revisão |
 
 ## 1. Atendimento humano de ponta a ponta
 
