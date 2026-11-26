@@ -14,13 +14,17 @@ from app.adapters.inbound.http.execution import execute_run, current_trace_id, l
 from app.adapters.inbound.http.identity import Who, bind_user
 from app.adapters.inbound.http.run_settings import get_run_settings
 from app.adapters.outbound.mongo.conversations import ACTIVE, TERMINAL, MongoConversations, scope
+from app.adapters.outbound.mongo.handoffs import MongoHandoffRepository
+from app.application.use_cases.attendance import AttendanceService
 from app.bootstrap.settings import get_settings
+from app.bootstrap.telemetry import record_handoff
+from app.domain.handoff import HandoffError
 
 router = APIRouter(prefix='/api/v1')
 
 _CURSOR = re.compile(r'\d{1,18}')
 _RUN_FIELDS = ('id', 'conversation_id', 'status', 'graph_version', 'trace_id', 'partial_text', 'sources', 'usage', 'error',
-               'cancel_requested', 'seq', 'created_at', 'updated_at')
+               'cancel_requested', 'seq', 'created_at', 'updated_at', 'review')
 
 
 class RunInput(BaseModel):
@@ -77,11 +81,44 @@ async def list_conversations(request: Request, who: Who, q: Annotated[str | None
     return jsonable({'items': items, 'next_cursor': next_cursor})
 
 
+def handoff_view(ticket: dict | None) -> dict | None:
+    """What the customer may see of the ticket holding the conversation."""
+    return {'protocol': ticket['protocol'], 'status': ticket['status'],
+            'operator_name': (ticket.get('operator') or {}).get('name')} if ticket else None
+
+
 @router.get('/conversations/{conversation_id}/messages')
 async def messages(conversation_id: str, request: Request, who: Who):
     repo = repository(request)
     if not await repo.get_conversation(who, conversation_id): raise ApiError(404, 'conversation_not_found', 'Conversa não encontrada.')
-    return jsonable({'items': await repo.messages(who, conversation_id)})
+    ticket = await MongoHandoffRepository(repo.db).active_for(who, conversation_id)
+    return jsonable({'items': await repo.messages(who, conversation_id), 'handoff': handoff_view(ticket)})
+
+
+async def deliver_to_operator(request: Request, who, conversation_id: str, message: str) -> dict | None:
+    """While a human holds the conversation the customer's message goes to the attendant: no run, no model call.
+
+    shortcut: a client retry of the same request stores the message twice; dedupe by Idempotency-Key if that shows up.
+    """
+    repo = repository(request)
+    handoffs = MongoHandoffRepository(repo.db)
+    ticket = await handoffs.active_for(who, conversation_id)
+    if not ticket:
+        return None
+    await repo.add_message(who, conversation_id, 'user', message)
+    await handoffs.customer_message(who, ticket['protocol'])
+    return handoff_view(ticket)
+
+
+@router.post('/conversations/{conversation_id}/handoff/cancel')
+async def cancel_handoff(conversation_id: str, request: Request, who: Who):
+    """The customer leaves the queue before an attendant claims the ticket and goes back to the assistant."""
+    repo = repository(request)
+    try:
+        await AttendanceService(MongoHandoffRepository(repo.db), repo, record_handoff).cancel_wait(who, conversation_id)
+    except HandoffError as exc:
+        raise ApiError(404 if exc.code == 'handoff_not_found' else 409, exc.code, exc.message, details=exc.details) from None
+    return {'conversation_id': conversation_id, 'handoff': None}
 
 
 @router.get('/runs/{run_id}')
@@ -121,6 +158,9 @@ def require_provider():
 async def start_run(conversation_id: str, payload: RunInput, request: Request, who: Who,
                     idempotency_key: Annotated[str, Header(alias='Idempotency-Key', min_length=1, max_length=200)]):
     bind_user(who, payload.user_id)
+    handoff = await deliver_to_operator(request, who, conversation_id, payload.message)
+    if handoff:
+        return {'conversation_id': conversation_id, 'run_id': None, 'status': 'with_operator', 'handoff': handoff}
     require_provider()
     run = await begin_run(request, who, payload.message, conversation_id, idempotency_key)
     return {'conversation_id': conversation_id, 'run_id': run['id'], 'status': run['status'],
@@ -132,9 +172,13 @@ async def chat(payload: ChatInput, request: Request, who: Who):
     """Challenge-compatible endpoint: waits for the run up to CHAT_WAIT_SECONDS, then answers 202 with the ids to poll."""
     cfg = get_run_settings()
     bind_user(who, payload.user_id)
-    require_provider()
     repo = repository(request)
     conversation_id = payload.conversation_id
+    handoff = await deliver_to_operator(request, who, conversation_id, payload.message) if conversation_id else None
+    if handoff:
+        return {'conversation_id': conversation_id, 'run_id': None, 'trace_id': None, 'answer': None, 'sources': [],
+                'status': 'with_operator', 'handoff': handoff}
+    require_provider()
     created_here = conversation_id is None
     if created_here:
         conversation_id = (await repo.create_conversation(who, payload.message[:60]))['id']

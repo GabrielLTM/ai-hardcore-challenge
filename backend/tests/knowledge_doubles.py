@@ -2,7 +2,7 @@
 import httpx
 from app.adapters.outbound.web.extract import extract_markdown
 from app.adapters.outbound.web.fetch import SafeFetcher
-from app.application.use_cases.ingest_sources import IngestionPipeline
+from app.application.use_cases.knowledge.ingest_sources import IngestionPipeline
 from app.domain.knowledge import OFFICIAL
 
 PUBLIC_IP = '93.184.216.34'

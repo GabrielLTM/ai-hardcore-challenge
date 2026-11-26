@@ -104,3 +104,16 @@ export function useCursorList<T>(path: string, params: Params, mode: 'pages' | '
     prev: () => setStack({ base, cursors: cursors.slice(0, -1) }),
   }
 }
+
+/** Chama `fn` a cada `ms` até o retorno ser chamado. Separado do hook para ser testado com relógio falso. */
+export function startPolling(fn: () => void, ms: number): () => void {
+  const t = setInterval(fn, ms)
+  return () => clearInterval(t)
+}
+
+/** Repete `fn` a cada `ms` enquanto `enabled`; sempre usa a versão mais recente de `fn`. */
+export function usePolling(fn: () => void, ms: number, enabled = true) {
+  const ref = useRef(fn)
+  useLayoutEffect(() => { ref.current = fn })
+  useEffect(() => (enabled ? startPolling(() => ref.current(), ms) : undefined), [enabled, ms])
+}

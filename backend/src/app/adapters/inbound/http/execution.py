@@ -16,12 +16,12 @@ from app.adapters.outbound.mongo.knowledge import MongoKnowledgeRepository
 from app.adapters.outbound.mongo.support import MongoSupportRepository
 from app.adapters.outbound.openai.gateway import OpenAIModelGateway
 from app.adapters.outbound.openai.web import OpenAIWebSearch
-from app.application.use_cases.evidence import event_view
-from app.application.use_cases.orchestrator import ExecutionError, Orchestrator
+from app.application.use_cases.orchestration.evidence import event_view
+from app.application.use_cases.orchestration.orchestrator import ExecutionError, Orchestrator
 from app.application.use_cases.support import SupportService
-from app.application.use_cases.tools import make_tools
+from app.application.use_cases.orchestration.tools import make_tools
 from app.bootstrap.settings import get_settings
-from app.bootstrap.telemetry import traced_emit
+from app.bootstrap.telemetry import record_handoff, traced_emit
 from app.domain.identity import Identity
 
 log = logging.getLogger(__name__)
@@ -80,6 +80,8 @@ class Recorder:
                 await self.flush()
             return
         await self.flush()
+        if kind == 'response.reset':  # the reviewer replaced the answer: the partial text starts over
+            self.text.clear()
         await self.repo.append_event(self.who, self.run_id, kind, data)
         if kind == 'usage.recorded':
             await self._record_usage(data)
@@ -119,8 +121,11 @@ async def conversation_history(repo: MongoConversations, who: Identity, run_id: 
     """Earlier user/assistant turns of the run's conversation, oldest first, without the message being answered."""
     run = await repo.get_run(who, run_id)
     rows = await repo.messages(who, run['conversation_id']) if run else []
-    prior = [m for m in rows if m.get('run_id') != run_id and m.get('role') in ('user', 'assistant') and m.get('content')]
-    return [{'role': m['role'], 'content': m['content'][:HISTORY_CHARS]} for m in prior[-HISTORY_MESSAGES:]]
+    prior = [m for m in rows if m.get('run_id') != run_id and m.get('role') in ('user', 'assistant', 'operator') and m.get('content')]
+    # The attendant spoke for the company: an assistant turn labelled as human, so the router knows who said it.
+    return [{'role': 'user', 'content': m['content'][:HISTORY_CHARS]} if m['role'] == 'user' else
+            {'role': 'assistant', 'content': (f"[Atendente {m.get('author_name') or 'humano'}] " if m['role'] == 'operator' else '')
+             + m['content'][:HISTORY_CHARS]} for m in prior[-HISTORY_MESSAGES:]]
 
 
 async def execute_run(app, run_id: str, who: Identity, message: str):
@@ -143,7 +148,7 @@ async def execute_run(app, run_id: str, who: Identity, message: str):
             await repo.set_fields(who, run_id, {'graph_version': graph_version})
             conversation_id = ((await repo.get_run(who, run_id)) or {}).get('conversation_id')
             tools = make_tools(SupportService(MongoSupportRepository(db)), runtime.knowledge, runtime.gateway,
-                               settings.embedding_model, runtime.web_search, MongoHandoffRepository(db), run_id, conversation_id)
+                               settings.embedding_model, runtime.web_search, MongoHandoffRepository(db, on_open=lambda: record_handoff('opened')), run_id, conversation_id)
             orchestrator = Orchestrator(runtime.gateway, agents, tools, cfg.limits())
             await emit('run.started', {'graph_version': graph_version})
             history = await conversation_history(repo, who, run_id)
@@ -176,6 +181,10 @@ async def _settle(repo, who, run_id, recorder: Recorder, orchestrator, emit, sta
     if orchestrator:
         await repo.save_evidence(who, run_id, orchestrator.evidence.retrieved, [i['evidence_id'] for i in cited], invalid)
     payload = {'cited_evidence': [i['evidence_id'] for i in cited], 'invalid_citations': invalid, **(error or {})}
+    if orchestrator and orchestrator.review:
+        payload['review'] = orchestrator.review
+        # the drafts stay out of `review` (shown to the customer with the run): only admin curation reads them
+        await repo.set_fields(who, run_id, {'review': orchestrator.review, 'review_answers': orchestrator.answers})
     await repo.finish(who, run_id, status, text, payload=payload, sources=[event_view(i) for i in cited], error=error)
 
 

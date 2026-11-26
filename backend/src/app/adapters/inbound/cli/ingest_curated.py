@@ -7,7 +7,7 @@ from pymongo import AsyncMongoClient
 from app.adapters.inbound.knowledge_wiring import embedding_dimensions, get_knowledge_settings, prepare_storage
 from app.adapters.outbound.mongo.knowledge import MongoKnowledgeRepository
 from app.adapters.outbound.openai.gateway import OpenAIModelGateway
-from app.application.use_cases.ingest_curated import ingest_curated
+from app.application.use_cases.knowledge.ingest_curated import ingest_curated
 from app.bootstrap.settings import get_settings
 
 

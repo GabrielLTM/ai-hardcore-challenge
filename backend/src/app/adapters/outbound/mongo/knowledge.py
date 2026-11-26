@@ -95,8 +95,10 @@ class MongoKnowledgeRepository:
 
     # --- retrieval -----------------------------------------------------------------------------------------
 
-    async def hybrid_search(self, workspace_id, query, embedding, limit=5):
-        """Vector + lexical search, both scoped to the workspace and the active embedding model, fused by RRF."""
+    async def hybrid_search(self, workspace_id, query, embedding, limit=5, mode='hybrid'):
+        """Vector + lexical search, both scoped to the workspace and the active embedding model, fused by RRF.
+
+        `mode` ('vector' or 'text') runs a single pipeline for the retrieval ablation; only the evaluation uses it."""
         fetch = max(limit * 2, 10)
         eligible = {'workspace_id': workspace_id, 'embedding_model': self.embedding_model}
         vector_pipeline = [
@@ -115,7 +117,8 @@ class MongoKnowledgeRepository:
         async def run(pipeline):
             return await (await self.db.knowledge_chunks.aggregate(pipeline)).to_list(length=fetch)
 
-        return rrf_fuse(await asyncio.gather(run(vector_pipeline), run(lexical_pipeline)), limit)
+        pipelines = {'hybrid': [vector_pipeline, lexical_pipeline], 'vector': [vector_pipeline], 'text': [lexical_pipeline]}[mode]
+        return rrf_fuse(await asyncio.gather(*map(run, pipelines)), limit)  # one list: RRF keeps its order
 
 
 def rrf_fuse(result_lists, limit, k=60):

@@ -1,8 +1,8 @@
 import asyncio
 import json
 import pytest
-from app.application.use_cases.orchestrator import ExecutionError, ExecutionLimits, Orchestrator
-from app.application.use_cases.tools import TOOL_SPECS, make_tools, tool_definition
+from app.application.use_cases.orchestration.orchestrator import ExecutionError, ExecutionLimits, Orchestrator
+from app.application.use_cases.orchestration.tools import TOOL_SPECS, make_tools, tool_definition
 from app.domain.identity import Identity
 from app.domain.models import Agent, AgentKind, ModelEvent
 

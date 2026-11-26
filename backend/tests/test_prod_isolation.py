@@ -2,6 +2,7 @@
 
 Runs use the canned fake model through the real run machinery; skipped when Mongo is down.
 """
+import os
 import asyncio
 import uuid
 from types import SimpleNamespace
@@ -18,7 +19,7 @@ from app.bootstrap.settings import get_settings
 from app.domain.models import Agent, AgentKind
 from test_prod_oidc import AUDIENCE, ISSUER, Issuer, KEY, claims, token
 
-URI = 'mongodb://localhost:27017/?directConnection=true'
+URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/?directConnection=true')
 
 
 def _mongo_up() -> bool:

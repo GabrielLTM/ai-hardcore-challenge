@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     oidc_roles_claim: str = 'roles'  # dotted path allowed, e.g. realm_access.roles
     oidc_admin_role: str = 'admin'
     oidc_operator_role: str = 'operator'
+    oidc_attendant_role: str = 'attendant'  # human attendant of the handoff area; never a customer
     oidc_leeway_seconds: int = Field(30, ge=0, le=300)
     oidc_jwks_ttl_seconds: float = Field(600, gt=0)
     oidc_jwks_min_refresh_seconds: float = Field(30, ge=0)  # floor between refetches forced by unknown `kid`s
@@ -36,6 +37,8 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str | None = None  # OTLP/HTTP base URL (e.g. http://observability:4318); unset: telemetry stays local
     demo_user_id: str = 'cliente1988'
     demo_workspace_id: str = 'demo'
+    operator_session_secret: SecretStr | None = None  # signs operator sessions (local-demo); empty: one per process
+    operator_demo_password: SecretStr = SecretStr('atendente-demo')  # test credential of the seeded operators
 
     @model_validator(mode='after')
     def production_requires_identity(self):

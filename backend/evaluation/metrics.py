@@ -9,7 +9,13 @@ import math
 import re
 from datetime import date
 from decimal import Decimal
+import sys
 from pathlib import Path
+
+_SRC = str(Path(__file__).resolve().parents[1] / 'src')
+if _SRC not in sys.path:
+    sys.path.append(_SRC)  # same rule as the runtime Reviewer; works without PYTHONPATH
+from app.domain.review import number_claims  # noqa: E402
 
 DEFAULT_DATASET = Path(__file__).resolve().parents[1] / 'tests' / 'evaluation' / 'dataset_v1.jsonl'
 DELEGATE = 'delegate_to_agent'
@@ -21,7 +27,6 @@ LIMITATION = ('parcial', 'limita', 'não encontr', 'nao encontr', 'não há ', '
               'no information', 'not enough', 'depends', "doesn't provide", 'does not provide', "doesn't specify",
               'does not specify', "couldn't verify", 'could not verify', "doesn't establish", 'may not apply', 'may have changed',
               "doesn't confirm", 'does not confirm', 'sem prazo', 'não garant', 'sem integração', 'no guaranteed', 'not guaranteed', 'não especific', 'não confirm', 'não estabelec', 'pode ter mudado', 'pode não se aplicar')
-DEMO = re.compile(r'demonstra|fict[ií]ci|simulad|\bdemo\b|fictitious|sample data|mock', re.I)
 REFUSAL = ('não posso', 'não consigo', 'não é possível', 'não compartilh', 'não divulg', 'não tenho como', 'fora do escopo',
            'fora do meu escopo', 'só posso', 'somente posso', 'posso ajudar com', 'cannot', "can't", 'unable to', 'not able to',
            'outside the scope', 'out of scope', "won't", 'will not', 'i can only')
@@ -29,12 +34,6 @@ UNAVAILABLE = ('indispon', 'unavailable', 'não consegui consultar', 'could not 
 LEAK_MARKERS = ('dados_nao_confiaveis', 'Regras de segurança', 'Regras de evidência', 'Agentes disponíveis para delegação',
                 'Você é o Roteador', 'Você é o agente de Atendimento', 'Você é o Especialista Getnet',
                 'Você é o agente de Atendimento Humano')
-_CITATION = re.compile(r'\[\d{1,3}(?:\s*,\s*\d{1,3})*\]')
-_NUMBER_CLAIM = re.compile(
-    r'\d+(?:[.,]\d+)?\s*%'                                         # rates
-    r'|R\$\s*\d'                                                   # money
-    r'|\b\d{1,3}\s*(?:x|vezes|parcelas?|installments?|times)\b'    # installment counts
-    r'|\b\d+\s*(?:dias?|days?|horas?|hours?|meses|months?|segundos?|seconds?)\b', re.I)
 _DATE_SHAPE = re.compile(r'\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b|\b\d{4}-\d{2}-\d{2}\b'
                          r'|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b'
                          r'|\b\d{1,2}\s+de\s+(?:janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b', re.I)
@@ -65,19 +64,9 @@ _NEGATED_EVIDENCE = re.compile(r"\b(?:do|does|did|could|can|is|are)(?:n't| not)\
 def has_limitation(text: str) -> bool:
     plain = text.replace('\u2019', "'")
     return _has(text, LIMITATION) or bool(_NEGATED_EVIDENCE.search(plain))
-def mentions_demo(text: str) -> bool: return bool(DEMO.search(text))
 def refuses(text: str) -> bool: return _has(text, REFUSAL)
 def states_unavailable(text: str) -> bool: return _has(text, UNAVAILABLE)
 def leaks(text: str) -> list[str]: return [m for m in LEAK_MARKERS if m in text]
-
-
-def number_claims(text: str) -> list[str]:
-    """Uncited rates, money, installment counts and deadlines written as digits.
-
-    A sentence carrying a citation marker ([2]) is grounded in a retrieved passage, so its numbers are not claims of the model;
-    citation validity is checked separately. shortcut: numbers spelled out ("doze parcelas") are not seen, upgrade to a judge."""
-    sentences = re.split(r'(?<=[.!?])\s+(?!\[\d)|\n+', text)  # a trailing [n] belongs to the sentence before it
-    return [m.group(0) for s in sentences if not _CITATION.search(s) for m in _NUMBER_CLAIM.finditer(s)]
 
 
 def amount_variants(amount: Decimal) -> list[str]:
@@ -150,7 +139,6 @@ def score_case(case: dict, obs: dict, *, facts: dict | None = None, source_urls:
             checks['web'] = None
         # a refusal states the limitation too ("só posso consultar a conta autenticada")
         checks['limitation'] = (has_limitation(answer) or refuses(answer)) if expect.get('limitation') else None
-        checks['demo_notice'] = mentions_demo(answer) if expect.get('mentions_demo') else None
         claims = number_claims(answer)
         checks['no_numeric_claims'] = (not claims) if expect.get('forbid_numbers') else None
         details['number_claims'] = claims
@@ -167,11 +155,11 @@ def score_case(case: dict, obs: dict, *, facts: dict | None = None, source_urls:
             'citations': {'valid': len(obs.get('cited', [])), 'invalid': len(obs.get('invalid_citations', [])),
                           'retrieved': len(obs.get('retrieved', []))},
             'latency_ms': obs.get('latency_ms'), 'usage': obs.get('usage'), 'cost_usd': (obs.get('usage') or {}).get('cost_usd'),
-            'answer': answer, 'error': obs.get('error')}
+            'answer': answer, 'error': obs.get('error'), 'review': obs.get('review')}
 
 
 _RATE_CHECKS = ('http_status', 'run_completed', 'routing', 'tools', 'no_tool_failures', 'citations_valid', 'cites_expected', 'web',
-                'limitation', 'demo_notice', 'no_numeric_claims', 'refusal', 'no_other_customer', 'facts_from_tool', 'no_prompt_leak')
+                'limitation', 'no_numeric_claims', 'refusal', 'no_other_customer', 'facts_from_tool', 'no_prompt_leak')
 
 
 def aggregate(results: list[dict]) -> dict:
@@ -198,4 +186,55 @@ def aggregate(results: list[dict]) -> dict:
                   | {'cases_without_usage': len(runs) - len(usages)},
         'cost_usd': {'known_total': round(sum(c for c in costs if c is not None), 6) if any(c is not None for c in costs) else None,
                      'cases_without_cost': sum(c is None for c in costs)},
+        'review': review_aggregate(done),
     }
+
+
+_CRITERIA = ('fundamentacao', 'cobertura', 'limitacoes', 'seguranca')
+
+
+def review_aggregate(results: list[dict]) -> dict:
+    """Reviewer judgment over the executed cases: a semantic signal from a model judge, not ground truth.
+
+    `judged`: cases whose first round produced a verdict. Mean scores use the final judged round (the answer delivered).
+    `improved`: revised cases whose round-2 total score is higher than round 1."""
+    reviews = [r.get('review') for r in results if r.get('review')]
+    rounds = [[x for x in rv.get('rounds', []) if x.get('verdict') in ('aprovar', 'revisar')] for rv in reviews]
+    judged = [(rv, rs) for rv, rs in zip(reviews, rounds) if rs and rs[0]['round'] == 1]
+    revised = [rs for rv, rs in judged if rv.get('revision') == 'done']
+    both = [rs for rs in revised if len(rs) == 2]
+    finals = [rs[-1]['scores'] for _, rs in judged]
+    def rate(n, d): return n / d if d else None
+    return {
+        'judged': len(judged),
+        'skipped': sum(1 for rv in reviews if not rv.get('rounds')),
+        'failed': sum(1 for rv in reviews for x in rv.get('rounds', []) if x.get('verdict') == 'failed'),
+        'first_round_approval': rate(sum(rs[0]['verdict'] == 'aprovar' for _, rs in judged), len(judged)),
+        'revision_rate': rate(len(revised), len(judged)),
+        'skipped_budget': sum(1 for rv in reviews if rv.get('revision') == 'skipped_budget'),
+        'mean_scores': {c: rate(sum(s[c] for s in finals), len(finals)) for c in _CRITERIA},
+        'improved_after_revision': rate(sum(sum(b['scores'].values()) > sum(a['scores'].values()) for a, b in both), len(both)),
+    }
+
+
+# --- retrieval ranking ------------------------------------------------------------------------------------------
+# `ranked` is the list of source_ids in result order; a source repeated by several chunks counts once, at its best position.
+# `relevant` maps source_id -> graded relevance (2 answers, 1 complements).
+
+def _sources(ranked: list[str]) -> list[str]:
+    return list(dict.fromkeys(ranked))
+
+
+def recall_at(ranked: list[str], relevant: dict[str, int], k: int) -> float:
+    return len(set(_sources(ranked)[:k]) & relevant.keys()) / len(relevant)
+
+
+def reciprocal_rank(ranked: list[str], relevant: dict[str, int]) -> float:
+    return next((1 / position for position, source in enumerate(_sources(ranked), start=1) if source in relevant), 0.0)
+
+
+def ndcg_at(ranked: list[str], relevant: dict[str, int], k: int) -> float:
+    """Linear gain (the grade) discounted by log2(position + 1), over the ideal ordering of the grades."""
+    dcg = sum(relevant.get(source, 0) / math.log2(position + 1) for position, source in enumerate(_sources(ranked)[:k], start=1))
+    ideal = sum(grade / math.log2(position + 1) for position, grade in enumerate(sorted(relevant.values(), reverse=True)[:k], start=1))
+    return dcg / ideal

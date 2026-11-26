@@ -76,7 +76,8 @@ async def observe(client: httpx.AsyncClient, case: dict, *, timeout: float = 120
     if not run_id:
         return {**obs, 'error': obs.get('error') or body.get('message') or f'HTTP {response.status_code}'}
     run = _json(await client.get(f'/api/v1/runs/{run_id}'))
-    obs |= {'run_id': run_id, 'run_status': run.get('status'), 'usage': run.get('usage'), 'answer': run.get('partial_text') or obs['answer']}
+    obs |= {'run_id': run_id, 'run_status': run.get('status'), 'usage': run.get('usage'), 'answer': run.get('partial_text') or obs['answer'],
+            'review': run.get('review')}
     if run.get('error') and not obs.get('error'):
         obs['error'] = run['error'].get('message')
     if timed_out:

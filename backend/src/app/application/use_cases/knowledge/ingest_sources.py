@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from app.application.ports.knowledge import SourceError
-from app.application.use_cases.knowledge_catalog import parse_curated, read_curated_text
+from app.application.use_cases.knowledge.knowledge_catalog import parse_curated, read_curated_text
 from app.domain.knowledge import CURATED, build_chunks, embedding_input, index_version, processing_version, sha256
 
 MIN_TEXT_CHARS = 200

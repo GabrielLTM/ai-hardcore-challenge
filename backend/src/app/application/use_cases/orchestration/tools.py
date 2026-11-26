@@ -4,25 +4,25 @@ Customer identity is never a tool argument: handlers take it from the authentica
 A handler may return a private `_usage` ({model, usage}) entry; the orchestrator turns it into `usage.recorded`.
 """
 from collections.abc import Sequence
-from app.application.use_cases.guardrails import mask
+from app.application.use_cases.orchestration.guardrails import mask
 from app.domain.identity import Identity
 
 HANDOFF_REASONS = ('cliente_pediu_humano', 'sem_evidencia_suficiente', 'problema_nao_resolvido', 'assunto_sensivel')
-EXPECTED_CONTACT = ('Um operador humano dará continuidade pelos canais oficiais; esta é uma simulação de demonstração, '
-                    'sem integração com atendimento real e sem prazo garantido.')
+EXPECTED_CONTACT = ('Um operador humano vai continuar esta conversa aqui no chat; até ele assumir, as mensagens do cliente '
+                    'ficam guardadas para ele. Não há prazo garantido.')
 
 _QUERY = {'type': 'string', 'description': 'Consulta em linguagem natural, completa e autoexplicativa.'}
 
 TOOL_SPECS: dict[str, dict] = {
     'get_receivables': {
         'description': 'Consulta os recebíveis (vendas, situação e previsão de pagamento) do cliente autenticado desta '
-                       'conversa. Não recebe identificador de cliente: a identidade vem do sistema. Retorna dados '
-                       'fictícios de demonstração; se a lista vier vazia, informe a ausência sem inventar datas ou valores.',
+                       'conversa. Não recebe identificador de cliente: a identidade vem do sistema. '
+                       'Se a lista vier vazia, informe a ausência sem inventar datas ou valores.',
         'properties': {}},
     'get_terminal_status': {
         'description': 'Consulta modelo, conectividade e erros dos terminais (maquininhas) do cliente autenticado desta '
-                       'conversa. Não recebe identificador de cliente: a identidade vem do sistema. Retorna dados '
-                       'fictícios de demonstração; se vier vazio, informe a ausência sem supor diagnóstico.',
+                       'conversa. Não recebe identificador de cliente: a identidade vem do sistema. '
+                       'Se vier vazio, informe a ausência sem supor diagnóstico.',
         'properties': {}},
     'search_knowledge': {
         'description': 'Busca híbrida (semântica e textual) nos documentos oficiais e resumos curados da Getnet: '
@@ -37,9 +37,8 @@ TOOL_SPECS: dict[str, dict] = {
         'properties': {'query': _QUERY}},
     'request_human_handoff': {
         'description': 'Registra o encaminhamento da conversa para um operador humano e devolve o protocolo. Use só quando o '
-                       'cliente pedir um humano, quando não houver evidência ou solução, ou em assunto sensível (reclamação '
-                       'formal, fraude, contestação). Não inclua CPF, CNPJ, cartão ou conta no resumo. Chamar de novo na mesma '
-                       'execução devolve o mesmo protocolo. Simulação de demonstração: não prometa prazo.',
+                       'cliente pede um atendente ou aceita a oferta de um. Não inclua CPF, CNPJ, cartão ou conta no resumo. '
+                       'Chamar de novo na mesma execução devolve o mesmo protocolo. Não prometa prazo.',
         'properties': {'reason': {'type': 'string', 'enum': list(HANDOFF_REASONS), 'description': 'Motivo do encaminhamento.'},
                        'summary': {'type': 'string', 'description': 'Resumo curto do caso e do que já foi tentado, sem dados sensíveis.'}}},
     'delegate_to_agent': {

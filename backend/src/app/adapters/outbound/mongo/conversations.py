@@ -81,6 +81,14 @@ class MongoConversations:
     async def messages(self, identity: Identity, conversation_id: str):
         return await self.db.messages.find({**scope(identity), 'conversation_id': conversation_id}, {'_id': 0}).sort('created_at', 1).to_list(length=500)
 
+    async def add_message(self, identity: Identity, conversation_id: str, role: str, content: str, author_name: str | None = None) -> dict:
+        """A message outside any run: the customer's while a human holds the conversation, an operator's or a system notice."""
+        doc = {**scope(identity), 'id': uuid4().hex, 'conversation_id': conversation_id, 'run_id': None, 'role': role,
+               'content': content, 'created_at': now(), **({'author_name': author_name} if author_name else {})}
+        await self.db.messages.insert_one(dict(doc))
+        await self.db.conversations.update_one({**scope(identity), 'id': conversation_id}, {'$set': {'updated_at': now()}})
+        return doc
+
     async def create_run(self, identity: Identity, conversation_id: str, message: str, key: str, *,
                          lease_seconds: float = 30, max_active: int | None = None, trace_id: str | None = None):
         """Return (run, created). Same key + same message replays the original run; another message raises IdempotencyConflict."""
@@ -213,6 +221,19 @@ class MongoConversations:
         await self.db.run_evidence.update_one({**scope(identity), 'run_id': run_id},
             {'$set': {'retrieved': [{**i, 'cited': i['evidence_id'] in cited} for i in retrieved],
                       'invalid_citations': invalid, 'updated_at': now()}}, upsert=True)
+
+    async def review_records(self, workspace_id: str, since, limit: int = 500) -> list[dict]:
+        """Reviewed runs of a workspace (every user), newest first, with the customer's question. For admin curation only.
+
+        shortcut: reads up to `limit` runs per request without a dedicated index; add (workspace_id, created_at) and paginate past demo volumes."""
+        runs = await self.db.runs.find({'workspace_id': workspace_id, 'review': {'$exists': True}, 'created_at': {'$gte': since}},
+                                       {'_id': 0, 'id': 1, 'conversation_id': 1, 'review': 1, 'review_answers': 1, 'created_at': 1}
+                                       ).sort('created_at', -1).limit(limit).to_list(length=limit)
+        asked = await self.db.messages.find({'workspace_id': workspace_id, 'role': 'user', 'run_id': {'$in': [r['id'] for r in runs]}},
+                                            {'_id': 0, 'run_id': 1, 'content': 1}).to_list(length=limit)
+        question = {m['run_id']: m['content'] for m in asked}
+        return [{'run_id': r['id'], 'conversation_id': r['conversation_id'], 'created_at': r['created_at'], 'review': r['review'],
+                 'answers': r.get('review_answers') or [], 'question': question.get(r['id'], '')} for r in runs]
 
     async def get_evidence(self, identity: Identity, run_id: str):
         return await self.db.run_evidence.find_one({**scope(identity), 'run_id': run_id}, {'_id': 0})

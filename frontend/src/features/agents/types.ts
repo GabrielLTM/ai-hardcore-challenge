@@ -60,15 +60,15 @@ export interface Validation { valid: boolean; graph_revision?: number | string |
 export interface Relationship { id: string; name: string | null; version: number | null; status: string; enabled?: boolean }
 export interface Relationships { inbound: Relationship[]; outbound: Relationship[]; graph_version?: string | null }
 
-export const KIND_LABEL: Record<string, string> = { router: 'Router', support: 'Suporte', knowledge: 'Conhecimento', custom: 'Personalizado' }
+export const KIND_LABEL: Record<string, string> = { router: 'Router', support: 'Suporte', knowledge: 'Conhecimento', reviewer: 'Revisor', custom: 'Personalizado' }
 export const DELEGATION_TOOL = 'delegate_to_agent'
 
 export const TOOL_CATALOG: { name: string; description: string }[] = [
   { name: 'search_knowledge', description: 'Busca híbrida na base curada e nas fontes oficiais coletadas.' },
   { name: 'web_search', description: 'Busca ao vivo na web, só para perguntas gerais e atuais.' },
-  { name: 'get_receivables', description: 'Consulta recebíveis do cliente autorizado (dados de demonstração).' },
-  { name: 'request_human_handoff', description: 'Registra o encaminhamento para um operador humano e devolve o protocolo (simulação de demonstração).' },
-  { name: 'get_terminal_status', description: 'Consulta a situação dos terminais do cliente autorizado (dados de demonstração).' },
+  { name: 'get_receivables', description: 'Consulta recebíveis do cliente autorizado.' },
+  { name: 'request_human_handoff', description: 'Registra o encaminhamento para um operador humano e devolve o protocolo.' },
+  { name: 'get_terminal_status', description: 'Consulta a situação dos terminais do cliente autorizado.' },
 ]
 
 export const toForm = (a: AgentContent): AgentContent => ({

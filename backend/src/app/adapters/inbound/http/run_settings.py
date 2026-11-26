@@ -2,7 +2,7 @@
 from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from app.application.use_cases.orchestrator import ExecutionLimits
+from app.application.use_cases.orchestration.orchestrator import ExecutionLimits
 
 
 class RunSettings(BaseSettings):

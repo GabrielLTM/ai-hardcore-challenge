@@ -14,6 +14,8 @@ from app.adapters.inbound.http.run_settings import get_run_settings
 from app.adapters.inbound.http.agents_routes import router as agents_router
 from app.adapters.inbound.http.knowledge_routes import router as knowledge_router
 from app.adapters.inbound.http.oidc import OidcVerifier
+from app.adapters.inbound.http.curation_routes import router as curation_router
+from app.adapters.inbound.http.operator_routes import router as operator_router
 
 
 @asynccontextmanager
@@ -44,6 +46,8 @@ register_error_handlers(app)
 app.include_router(router)
 app.include_router(agents_router)
 app.include_router(knowledge_router)
+app.include_router(operator_router)
+app.include_router(curation_router)
 setup_telemetry(app, get_settings())
 
 

@@ -1,4 +1,5 @@
 """The idempotent index command: every collection gets its indexes, reruns change nothing, retention follows the setting."""
+import os
 import uuid
 import pytest
 from pymongo import AsyncMongoClient, MongoClient
@@ -6,7 +7,7 @@ from app.adapters.inbound.cli.apply_indexes import HISTORY, apply_regular_indexe
 from app.adapters.inbound.http.run_settings import RunSettings
 from app.bootstrap.settings import Settings
 
-URI = 'mongodb://localhost:27017/?directConnection=true'
+URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/?directConnection=true')
 
 
 def _mongo_up() -> bool:

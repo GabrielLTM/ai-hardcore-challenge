@@ -4,17 +4,26 @@ import json
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 from app.application.ports.model import ModelGateway
-from app.application.use_cases.evidence import EvidenceLedger, event_view
-from app.application.use_cases.guardrails import build_instructions, mask, wrap_untrusted
-from app.application.use_cases.tools import TOOL_SPECS, tool_definition
+from app.application.use_cases.orchestration.evidence import EvidenceLedger, event_view
+from app.application.use_cases.orchestration.guardrails import build_instructions, mask, wrap_untrusted
+from app.application.use_cases.orchestration.tools import TOOL_SPECS, tool_definition
 from app.domain.identity import Identity
-from app.domain.models import Agent
+from app.domain.models import Agent, AgentKind
+from app.domain.review import FAILED, REVISE, SKIPPED, VERDICT_SCHEMA, InvalidVerdict, number_claims, parse_verdict
 from app.domain.pricing import PRICING_VERSION, estimate_cost_usd
 
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
 Tool = Callable[[Identity, dict[str, Any]], Awaitable[Any]]
 
+DATA_TOOLS = ('get_receivables', 'get_terminal_status')
+REVIEW_HISTORY_TURNS, REVIEW_HISTORY_CHARS = 6, 800  # recent turns the reviewer sees as context, never as evidence
+REVIEW_MARGIN_SECONDS = 1.0  # the reviewer stops this long before the run deadline, so its timeout never kills the run
+REVISION_NOTE = ('[Revisão interna, não é mensagem do cliente] O cliente ainda não recebeu nenhuma resposta a esta pergunta. '
+                 'Um revisor reprovou o rascunho abaixo, que o cliente nunca viu. Escreva a resposta completa do zero, como a '
+                 'primeira resposta ao cliente, corrigindo os problemas; busque evidência de novo se precisar e declare a '
+                 'limitação quando não houver. Não se refira ao rascunho ("como dito antes", "a orientação anterior") nem '
+                 'mencione a revisão.\nProblemas: {issues}\nRascunho reprovado: {draft}')
 TOOL_FAILED = {'error': {'code': 'tool_unavailable',
                          'message': 'A ferramenta não está disponível no momento. Informe isso ao usuário e não invente dados.'}}
 
@@ -26,6 +35,7 @@ class ExecutionLimits:
     max_tool_calls: int = 12
     timeout_seconds: float = 120
     max_output_tokens: int | None = 16000  # per-run budget, checked after each model call
+    max_revisions: int = 1  # reviewer-requested router rounds per run
 
 
 class ExecutionError(Exception):
@@ -41,17 +51,123 @@ class Orchestrator:
         self.gateway, self.agents, self.tools = gateway, dict(agents), dict(tools)  # agents = snapshot fixed for this run
         self.limits = limits or ExecutionLimits()
         self.evidence = EvidenceLedger()
+        self.review: dict[str, Any] | None = None  # rounds and revision outcome, saved with the run
+        self.reviewer = next((a for a in self.agents.values() if a.kind == AgentKind.REVIEWER), None)
+        self.live_sent = False  # some root text already reached the client before the verdict
+        self.agents_seen: list[str] = []  # agents that ran in the current round, for curation
+        self.empty_searches: list[str] = []  # knowledge queries that found nothing, for curation
+        self.facts: list[dict[str, Any]] = []  # customer data and handoff results, shown to the reviewer as grounded facts
+        self.answers: list[str] = []  # each judged answer (draft, then revision): admin curation only, never sent to the client
+        self.history: list[dict[str, str]] = []  # earlier turns, shown to the reviewer as context (what the client or an attendant said)
+
+    def _held(self, state: dict[str, int]) -> bool:
+        """Root text waits for the verdict once the answer rests on evidence or customer data."""
+        return bool(self.reviewer) and (bool(self.evidence.retrieved) or state.get('data_tools', 0) > 0)
+
+    async def _deliver(self, text: str, emit: Emit) -> None:
+        if self.live_sent:  # rare: a preface went out live before the evidence arrived
+            await emit('response.reset', {'reason': 'review', 'round': 2})
+        await emit('response.delta', {'text': text, 'agent_id': 'router'})
+        self.live_sent = True
 
     async def run(self, message: str, identity: Identity, emit: Emit, history: list[dict[str, str]] | None = None) -> str:
         """`history`: earlier turns of the conversation, given to the router only; delegated tasks stay self-contained."""
         if 'router' not in self.agents:
             raise ExecutionError('O grafo publicado não tem agente roteador.', 'no_router')
-        state = {'delegations': 0, 'tools': 0, 'output_tokens': 0}
+        state = {'delegations': 0, 'tools': 0, 'output_tokens': 0, 'data_tools': 0}
+        self.history = list(history or [])
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self.limits.timeout_seconds
         try:
-            async with asyncio.timeout(self.limits.timeout_seconds):
-                return await self._agent('router', message, identity, emit, state, [], root=True, history=history)
+            async with asyncio.timeout_at(deadline):
+                answer = await self._agent('router', message, identity, emit, state, [], root=True, history=history)
+                if self.reviewer:
+                    answer = await self._reviewed(message, answer, identity, emit, state, history, deadline)
+                return answer
         except TimeoutError:
             raise ExecutionError('Tempo limite da execução atingido.', 'limit_timeout') from None
+
+    async def _reviewed(self, message: str, answer: str, identity: Identity, emit: Emit, state: dict[str, int],
+                        history: list[dict[str, str]] | None, deadline: float) -> str:
+        """Reviewer pass and at most `max_revisions` router rounds; the reviewer never fails the run (fail-open)."""
+        if not self.evidence.retrieved and not state['data_tools']:
+            self.review = {'rounds': [], 'revision': 'not_needed', 'empty_searches': self.empty_searches}
+            await emit('review.completed', {'agent_id': self.reviewer.id, 'round': 1, 'verdict': SKIPPED, 'revision': 'not_needed'})
+            return answer
+        first = await self.judge(1, message, answer, emit, state, deadline)
+        self.answers = [answer]
+        revision = 'not_needed'
+        if first['verdict'] == REVISE and self.limits.max_revisions > 0:
+            budget, used = self.limits.max_output_tokens, state['output_tokens']
+            left = deadline - asyncio.get_running_loop().time()
+            fits = (not budget or used + len(answer) // 4 <= budget) and left > 0.2 * self.limits.timeout_seconds
+            revision = 'done' if fits else 'skipped_budget'
+        self.review = {'rounds': [first], 'revision': revision, 'empty_searches': self.empty_searches}
+        await emit('review.completed', {**first, 'revision': revision})
+        if revision != 'done':
+            await self._deliver(answer, emit)
+            return answer
+        self.agents_seen = []
+        prior = [*(history or []), {'role': 'user', 'content': message}]  # the draft never reached the client: not a turn
+        try:
+            async with asyncio.timeout_at(deadline - REVIEW_MARGIN_SECONDS):
+                revised = await self._agent('router', REVISION_NOTE.format(issues='; '.join(first['issues']), draft=answer), identity, emit, state, [],
+                                            root=True, history=prior)
+        except (ExecutionError, TimeoutError) as exc:  # keep the first answer rather than leaving the client with nothing
+            self.review['revision'] = 'failed'
+            await emit('review.completed', {'agent_id': self.reviewer.id, 'round': 2, 'verdict': FAILED,
+                                            'code': getattr(exc, 'code', 'limit_timeout'), 'revision': 'failed'})
+            await self._deliver(answer, emit)
+            return answer
+        second = await self.judge(2, message, revised, emit, state, deadline)
+        self.answers.append(revised)
+        self.review['rounds'].append(second)
+        await emit('review.completed', {**second, 'revision': 'done'})
+        await self._deliver(revised, emit)
+        return revised
+
+    async def judge(self, round_: int, message: str, answer: str, emit: Emit, state: dict[str, int], deadline: float) -> dict[str, Any]:
+        agent = self.reviewer
+        await emit('review.started', {'agent_id': agent.id, 'round': round_})
+        _, invalid = self.evidence.resolve(answer)
+        evidence = [{k: i.get(k) for k in ('evidence_id', 'kind', 'title', 'heading', 'url', 'text', 'limitations')}
+                    for i in self.evidence.retrieved]
+        review_input = {'pergunta': message, 'resposta': answer, 'citacoes_invalidas': invalid,
+                        'numeros_sem_citacao': number_claims(answer), 'ferramentas_de_dados_chamadas': state['data_tools'],
+                        'atendimento_humano_disponivel': any('request_human_handoff' in a.tools for a in self.agents.values())}
+        inputs = [{'role': 'user', 'content': wrap_untrusted('revisao', review_input) + '\n\n' + wrap_untrusted('evidencias', evidence)
+                   + '\n\n' + wrap_untrusted('dados_de_ferramentas', self.facts)
+                   + ('\n\n' + wrap_untrusted('historico_da_conversa', [
+                       {'role': t.get('role'), 'content': str(t.get('content', ''))[:REVIEW_HISTORY_CHARS]}
+                       for t in self.history[-REVIEW_HISTORY_TURNS:]]) if self.history else '')}]
+        cap = {'max_output_tokens': agent.limits['max_output_tokens']} if agent.limits.get('max_output_tokens') else {}
+        result: dict[str, Any] = {'agent_id': agent.id, 'round': round_, 'agents': list(dict.fromkeys(self.agents_seen)),
+                                  'sources': [{k: i.get(k) for k in ('evidence_id', 'kind', 'source_id', 'title', 'url')}
+                                              for i in self.evidence.retrieved]}
+        started = asyncio.get_running_loop().time()
+        text: list[str] = []
+        try:
+            async with asyncio.timeout_at(deadline - REVIEW_MARGIN_SECONDS):
+                async for event in self.gateway.stream(model=agent.model, instructions=build_instructions(agent.instructions, [], ()),
+                                                       inputs=inputs, tools=[], response_schema=VERDICT_SCHEMA, **cap):
+                    if event.type == 'text_delta':
+                        text.append(event.text)
+                    elif event.type == 'completed':
+                        usage = event.data.get('usage')
+                        cost = estimate_cost_usd(agent.model, usage)
+                        result['cost_usd'] = cost
+                        await emit('usage.recorded', {'agent_id': agent.id, 'model': agent.model, 'usage': usage,
+                                                      'cost_usd': cost, 'pricing_version': PRICING_VERSION})
+                        state['output_tokens'] += (usage or {}).get('output_tokens') or 0
+                    elif event.type == 'error':
+                        raise ExecutionError('Falha do modelo no Revisor', 'model_error')
+            verdict = parse_verdict(''.join(text))
+            result.update(verdict=verdict.verdict, scores=verdict.scores, issues=[mask(i, 500) for i in verdict.issues])
+        except (ExecutionError, InvalidVerdict, TimeoutError) as exc:
+            code = getattr(exc, 'code', None) or ('invalid_verdict' if isinstance(exc, InvalidVerdict) else 'review_timeout')
+            result.update(verdict=FAILED, code=code, issues=[])
+        result['duration_ms'] = round((asyncio.get_running_loop().time() - started) * 1000)
+        return result
 
     async def _agent(self, agent_id: str, task: str, identity: Identity, emit: Emit,
                      state: dict[str, int], path: list[str], root: bool = False, history: list[dict[str, str]] | None = None) -> str:
@@ -62,6 +178,7 @@ class Orchestrator:
         if len(path) >= self.limits.max_depth:
             raise ExecutionError('Limite de profundidade de delegação atingido', 'limit_depth')
         agent = self.agents[agent_id]
+        self.agents_seen.append(agent.id)
         await emit('agent.started', {'agent_id': agent.id, 'name': agent.name, 'version': agent.version,
                                      'parent_agent_id': path[-1] if path else None})
         try:
@@ -89,7 +206,9 @@ class Orchestrator:
                     text_parts.append(event.text)
                     if root:
                         streamed.append(event.text)
-                        await emit('response.delta', {'text': event.text, 'agent_id': agent.id})
+                        if not self._held(state):
+                            self.live_sent = True
+                            await emit('response.delta', {'text': event.text, 'agent_id': agent.id})
                 elif event.type == 'function_call':
                     calls.append(event.data)
                 elif event.type == 'completed':
@@ -159,6 +278,12 @@ class Orchestrator:
                 spent = result.pop('_usage')
                 await emit('usage.recorded', {'agent_id': agent.id, 'model': spent['model'], 'usage': spent['usage'],
                                               'cost_usd': estimate_cost_usd(spent['model'], spent['usage']), 'pricing_version': PRICING_VERSION})
+            if name in DATA_TOOLS:
+                state['data_tools'] = state.get('data_tools', 0) + 1
+            if name in (*DATA_TOOLS, 'request_human_handoff') and isinstance(result, dict) and 'error' not in result:
+                self.facts.append({'ferramenta': name, 'resultado': result})
+            if name == 'search_knowledge' and isinstance(result, dict) and not result.get('results'):
+                self.empty_searches.append(mask(str(args.get('query', ''))))
             result, summary = await self._register(agent, name, result, emit)
             if isinstance(result, dict) and result.get('status') == 'unavailable':
                 await emit('tool.failed', {'agent_id': agent.id, 'tool': name, 'code': 'unavailable',
@@ -178,7 +303,8 @@ class Orchestrator:
                                                'results': [event_view(by_id[i['evidence_id']]) for i in items]})
             return {**result, 'results': items}, f'{len(items)} trechos recuperados'
         if name == 'web_search' and result.get('status') != 'unavailable':
-            result = {**result, 'sources': self.evidence.add_web_sources(result.get('sources', []), result.get('retrieved_at'))}
+            result = {**result, 'sources': self.evidence.add_web_sources(result.get('sources', []), result.get('retrieved_at'),
+                                                                         result.get('answer') or '')}
             await emit('retrieval.completed', {'agent_id': agent.id, 'source': 'web',
                                                'results': [{k: s.get(k) for k in ('evidence_id', 'title', 'url')} for s in result['sources']]})
             return result, f"{len(result['sources'])} fontes"

@@ -1,5 +1,5 @@
-from app.application.use_cases.evidence import EvidenceLedger
-from app.application.use_cases.guardrails import mask, wrap_untrusted
+from app.application.use_cases.orchestration.evidence import EvidenceLedger
+from app.application.use_cases.orchestration.guardrails import mask, wrap_untrusted
 from app.domain.evidence import cited_ids, split_citations
 
 DOC = {'chunk_id': 'c1', 'source_id': 's1', 'title': 'Pix', 'heading': 'Prazo', 'text': 'x' * 3000, 'source_url': 'https://getnet.test/pix',

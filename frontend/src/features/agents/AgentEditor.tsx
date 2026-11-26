@@ -184,7 +184,8 @@ function EditorForm({ initial }: { initial: AgentFull }) {
 
   const nextVersion = (published?.version ?? 0) + 1
   const inbound = rel.data?.inbound ?? []
-  const options = agents.filter((a) => a.id !== baseline.id)
+  // O Revisor é chamado pelo orquestrador e nunca recebe delegação.
+  const options = agents.filter((a) => a.id !== baseline.id && (a.kind !== 'reviewer' || form.delegates.includes(a.id)))
   const unknown = form.delegates.filter((d) => !options.some((o) => o.id === d))
   const publishHint = dirty ? 'Salve o rascunho antes de publicar.' : validation && !validation.valid ? 'Corrija os vínculos inválidos para publicar.' : published && baseline.has_unpublished_changes === false ? 'Não há alterações para publicar.' : ''
   const publishDisabled = dirty || Boolean(validation && !validation.valid) || Boolean(published && baseline.has_unpublished_changes === false)
@@ -281,6 +282,7 @@ function EditorForm({ initial }: { initial: AgentFull }) {
               </div>
               <p className="muted small" style={{ margin: '8px 0 0' }}>Profundidade de delegação, número de delegações e tempo limite seguem os padrões da execução.</p>
             </fieldset>
+            {form.kind === 'reviewer' ? <Note>O Revisor não usa ferramentas nem delega: o orquestrador o chama para avaliar a resposta final.</Note> : <>
             <fieldset className="group">
               <legend>Ferramentas {changed('tools') && <Chip tone="warning" icon="pencil">Alterado</Chip>}</legend>
               {TOOL_CATALOG.map((t) => (
@@ -320,6 +322,7 @@ function EditorForm({ initial }: { initial: AgentFull }) {
                 </div>
               ))}
             </fieldset>
+            </>}
           </div>
         </form>
 

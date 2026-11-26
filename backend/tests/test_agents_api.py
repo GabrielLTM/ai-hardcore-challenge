@@ -101,7 +101,7 @@ async def test_relationships_list_filters_pagination_and_not_found(api):
     first = (await api.get('/api/v1/agents?limit=2')).json()
     assert [a['id'] for a in first['items']] == ['router', 'support'] and 'instructions' not in first['items'][0]
     second = (await api.get('/api/v1/agents', params={'limit': 2, 'cursor': first['next_cursor']})).json()
-    assert [a['id'] for a in second['items']] == ['knowledge', 'escalation'] and second['next_cursor'] is None
+    assert [a['id'] for a in second['items']] == ['knowledge', 'escalation'] and second['next_cursor']
     assert (await api.get('/api/v1/agents?kind=support&status=published&q=atendimento')).json()['items'][0]['id'] == 'support'
     assert (await api.get('/api/v1/agents?cursor=%21%21')).json()['code'] == 'invalid_cursor'
     assert (await api.get('/api/v1/agents/nao-existe')).status_code == 404

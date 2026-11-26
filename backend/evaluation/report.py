@@ -6,7 +6,7 @@ REPORTS = Path(__file__).resolve().parent / 'reports'
 _NA = 'não informado'
 _LABELS = {'http_status': 'HTTP esperado', 'run_completed': 'execução concluída', 'routing': 'roteamento (agentes)', 'tools': 'ferramentas',
            'no_tool_failures': 'sem falha de ferramenta', 'citations_valid': 'citações válidas', 'cites_expected': 'citou fonte esperada',
-           'web': 'web com fonte e data', 'limitation': 'ressalva declarada', 'demo_notice': 'aviso de dados demo',
+           'web': 'web com fonte e data', 'limitation': 'ressalva declarada',
            'no_numeric_claims': 'sem números proibidos', 'refusal': 'recusa', 'no_other_customer': 'não revela outro cliente',
            'facts_from_tool': 'valor/data da ferramenta', 'no_prompt_leak': 'sem vazamento de prompt'}
 
@@ -38,6 +38,23 @@ def render_markdown(report: dict) -> str:
               f"(validade {_pct(agg['citations']['validity_rate'])}; casos com citação inválida: {agg['citations']['cases_with_invalid']})", '',
               '## Taxas por verificação', '', '| Verificação | Acertos | Taxa |', '|---|---|---|']
     lines += [f"| {_LABELS[n]} | {c['ok']}/{c['total']} | {_pct(c['rate'])} |" for n, c in agg['checks'].items() if c['total']]
+    rv = agg.get('review') or {}
+    if rv.get('judged') or rv.get('skipped'):
+        scores = ', '.join(f"{c} {'-' if v is None else f'{v:.2f}'}" for c, v in rv['mean_scores'].items())
+        lines += ['', '## Revisor', '',
+                  f"- Respostas julgadas: {rv['judged']}; revisão dispensada (sem evidência): {rv['skipped']}; falhas do Revisor: {rv['failed']}",
+                  f"- Aprovadas na primeira rodada: {_pct(rv['first_round_approval'])}; revisadas: {_pct(rv['revision_rate'])}"
+                  f"; revisão não feita por orçamento: {rv['skipped_budget']}",
+                  f"- Notas médias da resposta entregue (0 a 2): {scores}",
+                  f"- Revisões em que a nota total melhorou: {_pct(rv['improved_after_revision'])}"]
+        if report['mode'] == 'simulated':
+            lines += ['', '> No modo simulado os vereditos são roteirizados: mostram que a revisão e a nova rodada funcionam, não a qualidade do julgamento.']
+        lines += ['', '| Caso | Vereditos | Revisão |', '|---|---|---|']
+        for r in report['cases']:
+            review = r.get('review')
+            if review:
+                verdicts = ' → '.join(f"{x['verdict']}" for x in review.get('rounds', [])) or 'dispensada'
+                lines.append(f"| {r['id']} | {verdicts} | {review.get('revision', '-')} |")
     lines += ['', '## Casos', '', '| Caso | Resultado | Agentes | Ferramentas | Citações (válidas/inválidas) | Latência | Tokens | Custo | Falhas |',
               '|---|---|---|---|---|---|---|---|---|']
     for r in report['cases']:

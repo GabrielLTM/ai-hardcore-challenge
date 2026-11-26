@@ -44,11 +44,12 @@ class OidcVerifier:
     def __init__(self, http: httpx.AsyncClient, *, issuer: str, audience: str, jwks_uri: str | None = None,
                  algorithms: tuple[str, ...] = ('RS256',), workspace_claim: str = 'workspace_id',
                  allowed_workspaces: tuple[str, ...] = (), roles_claim: str = 'roles', admin_role: str = 'admin',
-                 operator_role: str = 'operator', leeway: int = 30, jwks_ttl: float = 600, min_refresh: float = 30,
+                 operator_role: str = 'operator', attendant_role: str = 'attendant', leeway: int = 30, jwks_ttl: float = 600, min_refresh: float = 30,
                  clock=time.monotonic):
         self.http, self.issuer, self.audience, self.jwks_uri = http, issuer, audience, jwks_uri
         self.algorithms, self.workspace_claim, self.allowed_workspaces = list(algorithms), workspace_claim, set(allowed_workspaces)
         self.roles_claim, self.admin_role, self.operator_role = roles_claim, admin_role, operator_role
+        self.attendant_role = attendant_role
         self.leeway, self.jwks_ttl, self.min_refresh, self._clock = leeway, jwks_ttl, min_refresh, clock
         self._keys: dict[str | None, PyJWK] = {}
         self._fetched_at: float | None = None  # last successful fetch (TTL)
@@ -61,6 +62,7 @@ class OidcVerifier:
                    algorithms=tuple(csv(settings.oidc_algorithms)), workspace_claim=settings.oidc_workspace_claim,
                    allowed_workspaces=tuple(csv(settings.oidc_allowed_workspaces)), roles_claim=settings.oidc_roles_claim,
                    admin_role=settings.oidc_admin_role, operator_role=settings.oidc_operator_role,
+                   attendant_role=settings.oidc_attendant_role,
                    leeway=settings.oidc_leeway_seconds, jwks_ttl=settings.oidc_jwks_ttl_seconds,
                    min_refresh=settings.oidc_jwks_min_refresh_seconds)
 
@@ -136,7 +138,8 @@ class OidcVerifier:
             raise ApiError(403, 'forbidden', 'Usuário sem workspace autorizado.')
         roles = _claim(claims, self.roles_claim)
         roles = {roles} if isinstance(roles, str) else {r for r in roles if isinstance(r, str)} if isinstance(roles, list) else set()
-        role = 'admin' if self.admin_role in roles else 'operator' if self.operator_role in roles else None
+        role = 'admin' if self.admin_role in roles else 'operator' if self.operator_role in roles \
+            else 'attendant' if self.attendant_role in roles else None
         if role is None:
             raise ApiError(403, 'forbidden', 'Usuário sem papel autorizado.')
         return Identity(sub, workspace, role)

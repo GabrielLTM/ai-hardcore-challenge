@@ -51,9 +51,16 @@ async def test_case_routes_calls_tools_and_grounds_the_answer(sim, case):
     events, evidence, run = await raw(sim, body['run_id'])
     answer = body['answer']
 
-    # routing: exactly the expected agents, each started once, only along edges of the published graph
-    started = [e['payload']['agent_id'] for e in events if e['type'] == 'agent.started']
-    assert sorted(started) == sorted(expect['agents'])
+    # routing: exactly the expected agents, each started once per round, only along edges of the published graph
+    # (a Reviewer `revisar` gives the router one more round after the round-1 verdict; each round must follow the expectation)
+    cuts = [i + 1 for i, e in enumerate(events) if e['type'] == 'review.completed' and e['payload'].get('revision') == 'done'
+            and e['payload'].get('round') == 1]
+    rounds = [events[a:b] for a, b in zip([0, *cuts], [*cuts, len(events)])]
+    for part in rounds:
+        assert sorted(e['payload']['agent_id'] for e in part if e['type'] == 'agent.started') == sorted(expect['agents'])
+        assert sorted(e['payload']['tool'] for e in part if e['type'] == 'tool.started' and e['payload']['tool'] != 'delegate_to_agent') \
+            == sorted(expect['tools'])
+    events = rounds[-1]
     assert {(e['payload']['agent_id'], e['payload']['destination']) for e in events if e['type'] == 'route.selected'} <= GRAPH_EDGES
     # tools: the expected ones, no refusal, no failure
     tools = [e['payload']['tool'] for e in events if e['type'] == 'tool.started' and e['payload']['tool'] != 'delegate_to_agent']
@@ -86,8 +93,6 @@ async def test_case_routes_calls_tools_and_grounds_the_answer(sim, case):
     if 'get_terminal_status' in expect['tools']:
         terminal = await sim.db.terminals.find_one({'workspace_id': 'demo', 'user_id': 'cliente1988'})
         assert terminal['error'] in answer and terminal['model'] in answer
-    if expect.get('mentions_demo'):
-        assert metrics.mentions_demo(answer)
     if expect['limitation']:
         assert metrics.has_limitation(answer)
     if expect.get('forbid_numbers'):

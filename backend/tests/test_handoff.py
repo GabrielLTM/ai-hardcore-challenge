@@ -7,8 +7,8 @@ import pytest
 from pymongo import AsyncMongoClient
 from app.adapters.outbound.mongo.handoffs import MongoHandoffRepository
 from app.adapters.outbound.mongo.seed import SEED_AGENTS
-from app.application.use_cases.orchestrator import Orchestrator
-from app.application.use_cases.tools import HANDOFF_REASONS, make_tools, tool_definition
+from app.application.use_cases.orchestration.orchestrator import Orchestrator
+from app.application.use_cases.orchestration.tools import HANDOFF_REASONS, make_tools, tool_definition
 from app.domain.graph import KNOWN_TOOLS, Node, check_graph
 from app.domain.identity import Identity
 from app.domain.models import Agent, AgentKind
@@ -42,7 +42,7 @@ async def test_tool_creates_an_open_ticket_with_the_backend_identity(db):
     result = await handoff_tool(db)(WHO, {'reason': 'cliente_pediu_humano', 'summary': 'Quer falar com uma pessoa.',
                                            'user_id': 'outro', 'workspace_id': 'outro'})
     assert set(result) == {'protocol', 'status', 'expected_contact'} and PROTOCOL.match(result['protocol']) and result['status'] == 'aberto'
-    assert 'simulação de demonstração' in result['expected_contact'] and 'operador humano' in result['expected_contact']
+    assert 'aqui no chat' in result['expected_contact'] and 'demonstração' not in result['expected_contact']
     row = await db.handoffs.find_one({'protocol': result['protocol']})
     assert (row['workspace_id'], row['user_id'], row['run_id'], row['conversation_id']) == ('demo', 'cliente1988', 'run-1', 'conv-1')
     assert row['status'] == 'aberto' and row['reason'] == 'cliente_pediu_humano' and row['created_at'].year >= 2026
@@ -52,7 +52,8 @@ async def test_tool_creates_an_open_ticket_with_the_backend_identity(db):
 async def test_same_run_gets_the_same_ticket_and_another_run_a_new_one(db):
     first = await handoff_tool(db)(WHO, {'reason': 'assunto_sensivel', 'summary': 'a'})
     again = await handoff_tool(db)(WHO, {'reason': 'problema_nao_resolvido', 'summary': 'b'})
-    other = await handoff_tool(db, run_id='run-2')(WHO, {'reason': 'assunto_sensivel', 'summary': 'a'})
+    # another conversation: the same one would get its still-active ticket back (test_attendant)
+    other = await handoff_tool(db, run_id='run-2', conversation_id='conv-2')(WHO, {'reason': 'assunto_sensivel', 'summary': 'a'})
     assert again['protocol'] == first['protocol'] != other['protocol']
     assert await db.handoffs.count_documents({}) == 2
     assert (await db.handoffs.find_one({'protocol': first['protocol']}))['reason'] == 'assunto_sensivel'  # the first call wins

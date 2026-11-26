@@ -9,8 +9,8 @@ from app.adapters.outbound.mongo.search_indexes import ensure_search_indexes
 from app.adapters.outbound.openai.gateway import OpenAIModelGateway
 from app.adapters.outbound.web.extract import extract_markdown
 from app.adapters.outbound.web.fetch import SafeFetcher
-from app.application.use_cases.ingest_sources import IngestionPipeline
-from app.application.use_cases.knowledge_catalog import official_sources
+from app.application.use_cases.knowledge.ingest_sources import IngestionPipeline
+from app.application.use_cases.knowledge.knowledge_catalog import official_sources
 from app.bootstrap.settings import Settings
 from app.domain.knowledge import EMBEDDING_DIMENSIONS
 

@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 import pytest
-from app.application.use_cases.ingest_curated import read_curated_corpus, ingest_curated
+from app.application.use_cases.knowledge.ingest_curated import read_curated_corpus, ingest_curated
 from knowledge_doubles import FakeGateway, MemoryRepository
 
 

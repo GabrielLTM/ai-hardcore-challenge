@@ -21,7 +21,7 @@ DELEGATION_RULES = (
     'outros agentes, preserve as citações [n] exatamente como vieram.'
 )
 SUPPORT_RULES = (
-    'Os dados do cliente vêm só das ferramentas de consulta e são fictícios de demonstração: diga isso. Se a consulta '
+    'Os dados do cliente vêm só das ferramentas de consulta. Se a consulta '
     'vier vazia, informe a ausência; nunca invente datas, valores, diagnósticos ou integrações reais.'
 )
 EVIDENCE_RULES = (

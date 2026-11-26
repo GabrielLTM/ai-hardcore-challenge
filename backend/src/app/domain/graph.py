@@ -6,6 +6,7 @@ DELEGATE_TOOL = 'delegate_to_agent'
 KNOWN_TOOLS = frozenset({DELEGATE_TOOL, 'search_knowledge', 'web_search', 'get_receivables', 'get_terminal_status',
                          'request_human_handoff'})
 ROOT_AGENT = 'router'
+REVIEWER_KIND = 'reviewer'
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +14,7 @@ class Node:
     delegates: tuple[str, ...] = ()
     tools: tuple[str, ...] = ()
     enabled: bool = True
+    kind: str = ''
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +41,8 @@ def check_graph(nodes: Mapping[str, Node], root: str | None = None) -> list[Grap
         for tool in node.tools:
             if tool not in KNOWN_TOOLS:
                 issues.append(GraphIssue('unknown_tool', f"Ferramenta desconhecida em '{source}': {tool}.", source))
+        if node.kind == REVIEWER_KIND and (node.tools or node.delegates):
+            issues.append(GraphIssue('reviewer_with_tools', f"O Revisor '{source}' não pode ter ferramentas nem destinos.", source))
         if node.delegates and DELEGATE_TOOL not in node.tools:
             issues.append(GraphIssue('missing_delegate_tool', f"'{source}' tem destinos, mas não usa a ferramenta {DELEGATE_TOOL}.", source))
         edges[source] = []
@@ -47,6 +51,8 @@ def check_graph(nodes: Mapping[str, Node], root: str | None = None) -> list[Grap
                 issues.append(GraphIssue('self_reference', f"'{source}' não pode delegar para si mesmo.", source, (source, source)))
             elif target not in nodes:
                 issues.append(GraphIssue('unknown_destination', f"Destino inexistente ou não publicado: '{target}' (origem '{source}').", source, (source, target)))
+            elif nodes[target].kind == REVIEWER_KIND:
+                issues.append(GraphIssue('reviewer_destination', f"O Revisor '{target}' não recebe delegação (origem '{source}').", source, (source, target)))
             elif not nodes[target].enabled:
                 issues.append(GraphIssue('disabled_destination', f"Destino desativado: '{target}' (origem '{source}').", source, (source, target)))
             else:

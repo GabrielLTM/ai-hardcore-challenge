@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 import pytest
 from app.application.use_cases.support import SupportService
-from app.application.use_cases.tools import make_tools
+from app.application.use_cases.orchestration.tools import make_tools
 from app.domain.identity import Identity
 from app.domain.support import Receivable, Terminal
 
@@ -25,9 +25,9 @@ def tools(repo=None):
     return make_tools(SupportService(repo or Repository()), None, None, 'emb', None)
 
 
-async def test_fixture_data_is_returned_with_demo_labelling_and_fixture_fields():
+async def test_fixture_data_is_returned_with_fixture_fields():
     result = await tools()['get_receivables'](DEMO, {})
-    assert result['is_demo'] and 'demonstração' in result['notice'] and result['currency'] == 'BRL'
+    assert 'notice' not in result and 'is_demo' not in result and result['currency'] == 'BRL'
     assert result['items'][0]['amount'] == Decimal('3482.90') and result['items'][0]['payment_type'] == 'credito_a_vista'
     terminal = (await tools()['get_terminal_status'](DEMO, {}))['items'][0]
     assert (terminal['error'], terminal['serial_suffix'], terminal['carrier'], terminal['carrier_signal']) == ('Sem sinal da rede móvel', '4821', 'Algar', False)
@@ -54,12 +54,16 @@ async def test_search_knowledge_exposes_chunk_provenance_and_rank_score():
              'embedding_model': 'interno'}
 
     class Knowledge:
-        async def hybrid_search(self, workspace_id, query, embedding, limit=5): return [chunk]
+        async def hybrid_search(self, workspace_id, query, embedding, **kwargs):
+            self.kwargs = kwargs
+            return [chunk]
 
     class Model:
         async def embed(self, *, model, texts): return [[0.1]]
 
-    result = await make_tools(None, Knowledge(), Model(), 'emb', None)['search_knowledge'](DEMO, {'query': 'prazo pix'})
+    knowledge = Knowledge()
+    result = await make_tools(None, knowledge, Model(), 'emb', None)['search_knowledge'](DEMO, {'query': 'prazo pix', 'mode': 'text'})
+    assert knowledge.kwargs == {}  # the tool always searches in hybrid mode; `mode` exists only for the evaluation
     item = result['results'][0]
     assert (item['chunk_id'], item['heading'], item['index_version'], item['score']) == ('c1', 'Prazo', 'v2', 0.03)
     assert 'embedding_model' not in item  # only whitelisted fields reach the model

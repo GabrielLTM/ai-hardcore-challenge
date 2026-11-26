@@ -264,3 +264,20 @@ async def test_demo_identity_is_not_used_in_production(prod):
     prod.app.state.oidc = None
     response = await prod.http.get('/api/v1/conversations', headers=bearer())
     assert response.status_code == 503 and response.json()['code'] == 'service_unavailable'
+
+
+async def test_attendant_role_is_kept_apart_from_customer_and_admin_routes(prod):
+    from fastapi.security import HTTPAuthorizationCredentials
+    from app.adapters.inbound.http import operator_routes
+    from app.adapters.inbound.http.operator_auth import current_operator
+    from app.domain.identity import Operator
+    prod.app.include_router(operator_routes.router)
+    attendant = bearer(roles=['attendant'])
+    assert (await prod.http.get('/api/v1/conversations', headers=attendant)).status_code == 403
+    assert (await prod.http.get('/api/v1/agents', headers=attendant)).status_code == 403
+    assert (await prod.http.get('/api/v1/operator/handoffs', headers=bearer())).status_code == 403  # a customer token
+    assert (await prod.http.get('/api/v1/operator/handoffs')).status_code == 401
+    assert (await prod.http.post('/api/v1/operator/login', json={'email': 'ana@atendimento.demo', 'password': 'x'})).status_code == 404
+    request = SimpleNamespace(app=prod.app)
+    credentials = HTTPAuthorizationCredentials(scheme='Bearer', credentials=token(claims(roles=['attendant'])))
+    assert await current_operator(request, credentials) == Operator('user-1', 'user-1', 'ws1')

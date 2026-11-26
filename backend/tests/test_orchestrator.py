@@ -1,6 +1,6 @@
 import json
 import pytest
-from app.application.use_cases.orchestrator import ExecutionError, Orchestrator
+from app.application.use_cases.orchestration.orchestrator import ExecutionError, Orchestrator
 from app.domain.identity import Identity
 from app.domain.models import Agent, AgentKind, ModelEvent
 

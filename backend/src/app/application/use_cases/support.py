@@ -4,9 +4,7 @@ from app.domain.identity import Identity
 
 
 def _result(identity: Identity, items, empty_message: str) -> dict:
-    result = {'is_demo': identity.is_demo, 'items': [asdict(item) for item in items]}
-    if identity.is_demo:
-        result['notice'] = 'Dados fictícios de demonstração, sem integração com sistemas reais da Getnet.'
+    result = {'items': [asdict(item) for item in items]}
     if not items:
         result['message'] = empty_message
     return result

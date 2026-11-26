@@ -157,3 +157,41 @@ def test_http_middleware_sets_trace_header_and_records_route_template(collected)
                                                       ('http.route', '/api/v1/items/{item_id}')))] == 1
     assert not any('abc' in repr(key) for key in metrics)  # no raw paths in metric labels
     assert any(dict(a).get('http.route') == 'unmatched' for name, a in metrics if name == 'http.server.request.duration')
+
+
+def test_handoff_metrics_count_events_and_times_without_customer_attributes(collected):
+    telemetry.record_handoff('opened')
+    telemetry.record_handoff('claimed', 95.0)
+    telemetry.record_handoff('closed', 600.0)
+    telemetry.record_handoff('closed', None)  # no time known: counted, not timed
+    metrics = collected.metrics()
+    assert metrics[('getnet.handoffs', (('event', 'opened'),))] == 1
+    assert metrics[('getnet.handoffs', (('event', 'claimed'),))] == 1
+    assert metrics[('getnet.handoffs', (('event', 'closed'),))] == 2
+    assert metrics[('getnet.handoff.wait', ())] == 1 and metrics[('getnet.handoff.handle', ())] == 1
+    assert {attrs for (name, attrs) in metrics if name.startswith('getnet.handoff')} <= {(), (('event', 'opened'),), (('event', 'claimed'),), (('event', 'closed'),)}
+
+
+def test_dashboard_has_the_human_handoff_panels():
+    import json
+    from pathlib import Path
+    dashboard = json.loads((Path(__file__).parents[2] / 'infra/grafana/dashboards/getnet-atendimento.json').read_text())
+    exprs = ' '.join(t.get('expr') or '' for p in dashboard['panels'] for t in p.get('targets', []))
+    assert all(m in exprs for m in ('getnet_review_revisions_total', 'getnet_review_verdicts_total', 'getnet_review_duration_seconds_bucket'))
+    assert 'getnet_handoffs_total' in exprs and 'getnet_handoff_wait_seconds_bucket' in exprs and 'getnet_handoff_handle_seconds_bucket' in exprs
+    assert len({p['id'] for p in dashboard['panels']}) == len(dashboard['panels'])
+
+
+async def test_review_metrics_count_verdicts_revisions_and_duration_without_customer_attributes(collected):
+    emit = telemetry.traced_emit(lambda k, d: asyncio.sleep(0), 'run-review')
+    await play(emit, [('run.started', {}),
+                      ('review.completed', {'agent_id': 'reviewer', 'round': 1, 'verdict': 'revisar', 'revision': 'done',
+                                            'duration_ms': 1500, 'issues': [SECRET]}),
+                      ('review.completed', {'agent_id': 'reviewer', 'round': 2, 'verdict': 'aprovar', 'revision': 'done', 'duration_ms': 900}),
+                      ('run.completed', {})])
+    metrics = collected.metrics()
+    assert metrics[('getnet.review.verdicts', (('round', 1), ('verdict', 'revisar')))] == 1
+    assert metrics[('getnet.review.verdicts', (('round', 2), ('verdict', 'aprovar')))] == 1
+    assert metrics[('getnet.review.revisions', (('outcome', 'done'),))] == 1  # once per run
+    assert metrics[('getnet.review.duration', ())] == 2
+    assert SECRET not in repr(collected.everything())

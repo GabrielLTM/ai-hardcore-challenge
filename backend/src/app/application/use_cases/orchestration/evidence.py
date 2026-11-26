@@ -28,13 +28,14 @@ class EvidenceLedger:
             out.append({**d, 'evidence_id': item['evidence_id'], 'cite_as': f"[{item['evidence_id']}]"})
         return out
 
-    def add_web_sources(self, sources: list[dict], retrieved_at: str | None) -> list[dict]:
+    def add_web_sources(self, sources: list[dict], retrieved_at: str | None, text: str = '') -> list[dict]:
+        """`text`: what the web search returned to the agent, kept so the Reviewer can check the answer against it."""
         out = []
         for s in sources:
             item = self._add(f"web:{s.get('url') or s.get('title')}", kind='web', chunk_id=None, source_id=None,
                              title=s.get('title') or s.get('url'), heading=None, url=s.get('url'), version=None,
                              retrieved_on=retrieved_at, limitations=['Resultado de busca na web, sem validação da Getnet.'],
-                             document_type='web_search', text='')
+                             document_type='web_search', text=text[:_PASSAGE_LIMIT])
             out.append({**s, 'evidence_id': item['evidence_id'], 'cite_as': f"[{item['evidence_id']}]"})
         return out
 

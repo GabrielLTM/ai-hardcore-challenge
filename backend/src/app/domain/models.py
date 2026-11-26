@@ -10,6 +10,7 @@ class AgentKind(StrEnum):
     KNOWLEDGE = 'knowledge'
     SUPPORT = 'support'
     CUSTOM = 'custom'
+    REVIEWER = 'reviewer'
 
 
 @dataclass(frozen=True, slots=True)

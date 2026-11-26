@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import httpx
 import pytest
-from app.application.use_cases.knowledge_catalog import load_catalog, official_sources
+from app.application.use_cases.knowledge.knowledge_catalog import load_catalog, official_sources
 from knowledge_doubles import LONG, FakeGateway, MemoryRepository, official, page, pipeline, site
 
 WS = 'demo'

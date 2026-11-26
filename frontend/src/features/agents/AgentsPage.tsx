@@ -57,6 +57,34 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** Cartão da lista. O Revisor não tem ferramentas nem delegações: aparecem como "Nenhuma" e "Nenhum". */
+export function AgentCard({ agent: a, names }: { agent: AgentSummary; names: Record<string, string> }) {
+  return (
+    <li className="agent-card">
+      <div className="agent-card__top">
+        <Chip>{KIND_LABEL[a.kind] ?? a.kind}</Chip>
+        <span className="small muted">{a.version ? `v${a.version}` : 'Sem versão publicada'}</span>
+      </div>
+      <h2 className="agent-card__name"><Link className="agent-card__link" to={`/agentes/${a.id}`}>{a.name}</Link></h2>
+      {a.description && <p className="agent-card__desc">{a.description}</p>}
+      <div className="agent-card__chips">
+        {a.status === 'published' ? <Chip tone="success" icon="check">Publicado</Chip> : <Chip tone="warning" icon="pencil">Rascunho · não publicado</Chip>}
+        {a.status === 'published' && a.has_unpublished_changes && <Chip tone="warning" icon="pencil">Rascunho rev. {a.revision} · não publicado</Chip>}
+        {a.enabled === false && <Chip icon="x">Inativo</Chip>}
+      </div>
+      <dl className="kv">
+        <dt>Ferramentas</dt><dd><Tags items={a.tools} /></dd>
+        <dt>Delega para</dt><dd>{a.delegates.length ? a.delegates.map((d) => names[d] ?? d).join(', ') : <span className="muted">Nenhum</span>}</dd>
+        <dt>Atualizado</dt><dd>{fmtDateTime(a.updated_at)}</dd>
+      </dl>
+      <div className="agent-card__foot">
+        <span className="id">{a.id}</span>
+        <span className="agent-card__cta" aria-hidden="true">Ver configuração</span>
+      </div>
+    </li>
+  )
+}
+
 export default function AgentsPage() {
   useDocumentTitle('Agentes')
   const [search, setSearch] = useState('')
@@ -111,28 +139,7 @@ export default function AgentsPage() {
           <>
             <ul className="agent-cards" aria-label="Agentes do workspace">
               {list.items.map((a) => (
-                <li key={a.id} className="agent-card">
-                  <div className="agent-card__top">
-                    <Chip>{KIND_LABEL[a.kind] ?? a.kind}</Chip>
-                    <span className="small muted">{a.version ? `v${a.version}` : 'Sem versão publicada'}</span>
-                  </div>
-                  <h2 className="agent-card__name"><Link className="agent-card__link" to={`/agentes/${a.id}`}>{a.name}</Link></h2>
-                  {a.description && <p className="agent-card__desc">{a.description}</p>}
-                  <div className="agent-card__chips">
-                    {a.status === 'published' ? <Chip tone="success" icon="check">Publicado</Chip> : <Chip tone="warning" icon="pencil">Rascunho · não publicado</Chip>}
-                    {a.status === 'published' && a.has_unpublished_changes && <Chip tone="warning" icon="pencil">Rascunho rev. {a.revision} · não publicado</Chip>}
-                    {a.enabled === false && <Chip icon="x">Inativo</Chip>}
-                  </div>
-                  <dl className="kv">
-                    <dt>Ferramentas</dt><dd><Tags items={a.tools} /></dd>
-                    <dt>Delega para</dt><dd>{a.delegates.length ? a.delegates.map((d) => names[d] ?? d).join(', ') : <span className="muted">Nenhum</span>}</dd>
-                    <dt>Atualizado</dt><dd>{fmtDateTime(a.updated_at)}</dd>
-                  </dl>
-                  <div className="agent-card__foot">
-                    <span className="id">{a.id}</span>
-                    <span className="agent-card__cta" aria-hidden="true">Ver configuração</span>
-                  </div>
-                </li>
+                <AgentCard key={a.id} agent={a} names={names} />
               ))}
             </ul>
             {(list.hasPrev || list.hasNext) && <Pager label="Paginação de agentes" hasPrev={list.hasPrev} hasNext={list.hasNext} onPrev={list.prev} onNext={list.next}

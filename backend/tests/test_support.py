@@ -19,11 +19,11 @@ class Repository:
 
 
 @pytest.mark.asyncio
-async def test_support_uses_authenticated_identity_and_labels_demo():
+async def test_support_uses_authenticated_identity():
     service = SupportService(Repository())
     identity = Identity('cliente1988', 'demo', 'admin', is_demo=True)
     assert (await service.get_receivables(identity))['items'][0]['amount'] == Decimal('150.00')
     assert (await service.get_terminal_status(identity))['items'][0]['connectivity'] == 'sem conexão'
-    assert (await service.get_receivables(identity))['is_demo'] is True
+    assert set(await service.get_receivables(identity)) == {'items', 'currency'}  # no demo notice for the model to repeat
     assert (await service.get_receivables(Identity('someone-else', 'demo', 'operator')))['items'] == []
     assert (await service.get_terminal_status(Identity('cliente1988', 'other', 'operator')))['items'] == []
