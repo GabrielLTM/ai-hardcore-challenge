@@ -9,6 +9,13 @@ def job_outcome(results: list[dict]) -> tuple[str, dict | None]:
     return status, ({'source_id': failed[0]['source_id'], **failed[0]['error']} if failed else None)
 
 
+async def first_ingestion(jobs, workspace_id: str, source_ids: list[str], max_attempts: int = 3) -> dict | None:
+    """Queue the first ingestion of a workspace so `docker compose up` ends with a searchable base; never again once one exists."""
+    if not source_ids or await jobs.recent(workspace_id, 1):
+        return None
+    return await jobs.create(workspace_id, 'system', source_ids, max_attempts)
+
+
 async def process_next(jobs, pipeline, load_catalog, worker_id: str, *, lease_s: float = 60.0,
                        timeout_s: float = 600.0, retry_delay_s: float = 30.0) -> bool:
     """Claim and process one job. Returns False when the queue had nothing eligible."""

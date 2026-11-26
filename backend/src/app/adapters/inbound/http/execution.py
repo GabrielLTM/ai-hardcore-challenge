@@ -121,11 +121,13 @@ async def conversation_history(repo: MongoConversations, who: Identity, run_id: 
     """Earlier user/assistant turns of the run's conversation, oldest first, without the message being answered."""
     run = await repo.get_run(who, run_id)
     rows = await repo.messages(who, run['conversation_id']) if run else []
-    prior = [m for m in rows if m.get('run_id') != run_id and m.get('role') in ('user', 'assistant', 'operator') and m.get('content')]
-    # The attendant spoke for the company: an assistant turn labelled as human, so the router knows who said it.
+    prior = [m for m in rows if m.get('run_id') != run_id and m.get('role') in ('user', 'assistant', 'operator', 'system') and m.get('content')]
+    # The attendant spoke for the company and the notices say who is in the conversation (e.g. the attendant left):
+    # both go as labelled assistant turns, so the router knows who said what.
+    label = {'operator': lambda m: f"[Atendente {m.get('author_name') or 'humano'}] ", 'system': lambda m: '[Aviso do sistema] '}
     return [{'role': 'user', 'content': m['content'][:HISTORY_CHARS]} if m['role'] == 'user' else
-            {'role': 'assistant', 'content': (f"[Atendente {m.get('author_name') or 'humano'}] " if m['role'] == 'operator' else '')
-             + m['content'][:HISTORY_CHARS]} for m in prior[-HISTORY_MESSAGES:]]
+            {'role': 'assistant', 'content': label.get(m['role'], lambda m: '')(m) + m['content'][:HISTORY_CHARS]}
+            for m in prior[-HISTORY_MESSAGES:]]
 
 
 async def execute_run(app, run_id: str, who: Identity, message: str):

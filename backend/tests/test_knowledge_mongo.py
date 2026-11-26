@@ -20,7 +20,7 @@ from app.adapters.outbound.mongo.ingestion_jobs import MongoIngestionJobs
 from app.adapters.outbound.mongo.knowledge import MongoKnowledgeRepository
 from app.adapters.outbound.mongo.search_indexes import ensure_search_indexes, wait_queryable
 from app.application.ports.knowledge import LeaseLost
-from app.application.use_cases.knowledge.ingestion_jobs import process_next
+from app.application.use_cases.knowledge.ingestion_jobs import first_ingestion, process_next
 from app.bootstrap.settings import Settings
 from app.domain.identity import Identity
 from knowledge_doubles import LONG, official, page, pipeline, site
@@ -510,3 +510,13 @@ async def test_worker_registers_the_catalog_consumes_the_queue_and_stops_on_sigt
     assert len(await repo.source_ids(WS)) == 20  # 10 curated + 10 official URLs registered as pending
     assert (await repo.get_source(WS, '01-visao-global'))['status'] == 'failed'
     assert await db.knowledge_chunks.count_documents({}) == 0
+
+
+async def test_first_ingestion_is_queued_once_per_workspace(db):
+    jobs = MongoIngestionJobs(db)
+    assert await first_ingestion(jobs, 'demo', []) is None  # no catalog registered yet
+    job = await first_ingestion(jobs, 'demo', ['01-visao-global', 'official-pix'])
+    assert job['status'] == 'queued' and job['source_ids'] == ['01-visao-global', 'official-pix']
+    assert await first_ingestion(jobs, 'demo', ['01-visao-global']) is None  # a restart never re-ingests
+    assert len(await jobs.recent('demo')) == 1
+

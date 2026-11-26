@@ -87,13 +87,19 @@ O primeiro início leva alguns minutos (o Atlas Local tem `start_period` de 40 s
 | MongoDB | `mongodb://localhost:27017/?directConnection=true` |
 | Observabilidade (Grafana) | http://localhost:3000/d/getnet-atendimento |
 
-**Ingerir a base de conhecimento (primeira vez).** O worker registra as 20 fontes ao iniciar e um job as processa: 10 sínteses curadas (`data/knowledge/getnet`) e 10 URLs oficiais (coleta pela rede e embeddings `text-embedding-3-small`, que consomem tokens do provedor). Se o catálogo ainda não foi registrado, o `POST` responde `409 no_sources`: aguarde alguns segundos e repita.
+**Base de conhecimento: pronta sozinha no primeiro início.** Os agentes já sobem criados e publicados. Com `OPENAI_API_KEY` no `.env`, o worker cria os índices de busca, registra as 20 fontes e enfileira a primeira ingestão: 10 sínteses curadas (`data/knowledge/getnet`) e 10 URLs oficiais (coleta pela rede e embeddings `text-embedding-3-small`, poucos centavos de dólar). Em cerca de 1 a 2 minutos depois do `up`, as fontes ficam `indexed`. Isso acontece uma vez por banco; reiniciar não ingere de novo (`KNOWLEDGE_AUTO_INGEST=false` desliga).
+
+```bash
+curl -s localhost:8000/api/v1/knowledge/sources                    # 20 fontes; status indexed quando terminar
+curl -s localhost:8000/api/v1/knowledge/ingestions                 # o job automático: queued, running, partial ou succeeded
+```
+
+Para reingerir depois (por exemplo, depois de mudar uma síntese), crie um job manualmente:
 
 ```bash
 curl -s -X POST localhost:8000/api/v1/knowledge/ingestions        # devolve o job; guarde o "id"
-curl -s localhost:8000/api/v1/knowledge/ingestions/<id>            # status: queued, running, partial ou succeeded
-docker compose exec api python -m app.adapters.inbound.cli.ensure_indexes --wait 90   # índices de busca consultáveis (apply_indexes aplica todos os índices)
-curl -s localhost:8000/api/v1/knowledge/sources                    # 20 fontes; status indexed
+curl -s localhost:8000/api/v1/knowledge/ingestions/<id>            # acompanhe o status
+docker compose exec api python -m app.adapters.inbound.cli.ensure_indexes --wait 90   # espera os índices de busca ficarem consultáveis
 ```
 
 O resultado esperado é `succeeded`: as dez páginas oficiais e as dez sínteses ficam `indexed`. Uma página que falhar (fora do ar, vazia, bloqueada) deixa o job `partial` sem apagar a versão indexada anterior. Também é possível ingerir pela linha de comando: `docker compose exec worker python -m app.adapters.inbound.cli.ingest_urls [--source ID]` (somente URLs oficiais) e `... ingest_curated /data/knowledge/getnet`.
@@ -242,7 +248,7 @@ sequenceDiagram
 
 Eventos: `run.started`, `route.selected`, `agent.started/completed/failed`, `tool.started/completed/failed`, `retrieval.completed`, `response.delta`, `usage.recorded` e `run.completed/failed/cancelled/interrupted`. Esquema, retomada, 410, retenção, lease e idempotência: [docs/eventos.md](docs/eventos.md). Rotas e erros: [docs/api.md](docs/api.md).
 
-**Atendimento humano.** Quando o agente `escalation` abre um protocolo, a conversa passa ao modo humano: mensagens do cliente deixam de iniciar execuções (`POST /chat` responde `200` com `answer: null` e `status: "with_operator"`; `POST /conversations/{id}/runs`, `202` sem `events_url`) e ficam para o atendente. Na área do atendente (http://localhost:8080/atendente; contas de demonstração `ana@atendimento.demo` e `bruno@atendimento.demo`, senha `OPERATOR_DEMO_PASSWORD`, preenchidas por botões na tela de login), o protocolo é assumido (só o primeiro de dois atendentes simultâneos vence), respondido e encerrado com nota de resolução. Ao encerrar, a conversa volta ao Roteador, cujo histórico inclui as falas do atendente com o prefixo `[Atendente <nome>]`. O chat do cliente consulta as mensagens a cada 3 s enquanto há protocolo ativo. Enquanto ninguém assumiu, o cliente pode clicar em "Voltar ao assistente" e sair da fila; depois de assumido, só o atendente encerra.
+**Atendimento humano.** Quando o agente `escalation` abre um protocolo, a conversa passa ao modo humano: mensagens do cliente deixam de iniciar execuções (`POST /chat` responde `200` com `answer: null` e `status: "with_operator"`; `POST /conversations/{id}/runs`, `202` sem `events_url`) e ficam para o atendente. Na área do atendente (http://localhost:8080/atendente; contas de demonstração `ana@atendimento.demo` e `bruno@atendimento.demo`, senha `OPERATOR_DEMO_PASSWORD`, preenchidas por botões na tela de login), o protocolo é assumido (só o primeiro de dois atendentes simultâneos vence), respondido e encerrado com nota de resolução. Ao encerrar, a conversa volta ao Roteador, cujo histórico inclui as falas do atendente com o prefixo `[Atendente <nome>]` e os avisos com `[Aviso do sistema]`; o Roteador retoma a orientação do atendente atribuindo a ele ("como a Ana orientou…"). O chat do cliente consulta as mensagens a cada 3 s enquanto há protocolo ativo. Enquanto ninguém assumiu, o cliente pode clicar em "Voltar ao assistente" e sair da fila; depois de assumido, só o atendente encerra.
 
 ```mermaid
 sequenceDiagram

@@ -206,7 +206,8 @@ async def test_full_cycle_from_ticket_to_the_router_with_the_attendant_in_its_hi
     history = api.model.inputs[-1]
     assert {'role': 'assistant', 'content': f'[Atendente {winner_name}] Olá, vou verificar sua conta.'} in history
     assert {'role': 'user', 'content': 'Alguém aí?'} in history
-    assert not any(m['content'].startswith(('Atendente ', 'Atendimento encerrado')) for m in history)  # system notices stay out
+    assert {'role': 'assistant', 'content': '[Aviso do sistema] Atendimento encerrado. Você voltou a falar com o assistente virtual.'} in history
+    assert not any(m['content'].startswith(('Atendente ', 'Atendimento encerrado')) for m in history)  # notices only with their label
 
     kinds = [e['kind'] for e in (await api.handoffs.get('demo', protocol))['timeline']]
     assert kinds == ['opened', 'customer_message', 'customer_message', 'claimed', 'operator_message', 'note', 'closed']

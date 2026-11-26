@@ -30,6 +30,7 @@ class KnowledgeSettings(BaseSettings):
     job_max_attempts: int = 3
     job_retry_delay_s: float = 30.0
     worker_poll_s: float = 2.0
+    auto_ingest: bool = True  # the worker queues the first ingestion on an empty workspace (needs OPENAI_API_KEY)
 
 
 @lru_cache

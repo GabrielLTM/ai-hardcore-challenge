@@ -7,7 +7,7 @@ from openai import AsyncOpenAI
 from pymongo import AsyncMongoClient
 from app.adapters.inbound.knowledge_wiring import build_pipeline, get_knowledge_settings, prepare_storage
 from app.adapters.outbound.mongo.ingestion_jobs import MongoIngestionJobs
-from app.application.use_cases.knowledge.ingestion_jobs import process_next
+from app.application.use_cases.knowledge.ingestion_jobs import first_ingestion, process_next
 from app.application.use_cases.knowledge.knowledge_catalog import load_catalog
 from app.bootstrap.settings import get_settings
 
@@ -32,6 +32,11 @@ async def main():
         jobs = MongoIngestionJobs(db)
         # shortcut: one shared catalog registered for the demo workspace only, per-workspace catalogs when tenants own sources
         await pipeline.repository.register_sources(settings.demo_workspace_id, list(load_catalog(knowledge.data_dir).values()))
+        if knowledge.auto_ingest and openai_client:
+            ws = settings.demo_workspace_id
+            job = await first_ingestion(jobs, ws, await pipeline.repository.source_ids(ws), knowledge.job_max_attempts)
+            if job:
+                log.warning('primeira ingestão da base enfileirada automaticamente (job %s)', job['id'])
         worker_id = f'worker-{uuid4().hex[:8]}'
         log.warning('worker %s aguardando jobs (embeddings %s)', worker_id, 'ativos' if openai_client else 'indisponíveis: sem OPENAI_API_KEY')
         while not stop.is_set():
