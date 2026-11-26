@@ -124,6 +124,7 @@ Depois que o Roteador escreve a resposta final, o Revisor confere a qualidade de
 - 13 respostas rotuladas: 5 corretas e 8 com defeito proposital (número inventado, citação que não sustenta a frase, citação inexistente, parte da pergunta ignorada, procedimento específico tratado como universal, vazamento de instruções).
 - Mede quantos defeitos o Revisor detecta, se aprova as respostas corretas e se aponta o critério certo.
 - Existe para medir o viés de um juiz que pode ser o mesmo modelo do Roteador.
+- Rodada real (26/11/2026, 17,5 mil tokens): 8 de 8 defeitos detectados, 5 de 5 respostas corretas aprovadas, todos os defeitos no critério certo e nenhuma falha do Revisor. Limite: casos com defeitos explícitos e juiz do mesmo modelo do Roteador.
 
 ## 4. Qualidade e verificação
 
@@ -151,7 +152,7 @@ Testes novos:
 
 ## 6. O que ainda falta
 
-- **Rodadas com a OpenAI real**, com teto de gasto: calibração do Revisor e `run_eval --real` com o Revisor ligado. Só elas medem a qualidade do julgamento com o modelo real. (Os embeddings das consultas já foram gerados e estão no cache.)
+- **`run_eval --real` com o Revisor ligado**, com teto de gasto: mede os 17 casos de ponta a ponta com o modelo real, incluindo latência e custo com o Revisor. A calibração do Revisor e os embeddings das consultas já rodaram com a OpenAI real.
 - **Verificação de acessibilidade por teclado** da área do atendente (tarefa 5.4 de `area-atendente-humano`).
 - **Arquivar as duas mudanças** com `/opsx:archive` depois do commit.
 - **Bancos locais existentes:** se o grafo já estava publicado, o Revisor entra como rascunho e precisa ser publicado na tela de agentes. Num banco novo ele já vem publicado.

@@ -235,4 +235,16 @@ cd backend
 | Especificidade | fração das respostas corretas que ele aprovou (revisões desnecessárias custam tempo e tokens) |
 | Critério certo | fração dos defeitos em que a nota do critério ligado ao defeito ficou abaixo de 2 (apontou pelo motivo certo) |
 
+**Resultado com a OpenAI real (26/11/2026, `gpt-6-luna`).**
+
+| Medida | Resultado |
+|---|---|
+| Defeitos detectados (recall de `revisar`) | 8 de 8 (100%) |
+| Respostas corretas aprovadas (especificidade) | 5 de 5 (100%) |
+| Defeito apontado no critério certo | 8 de 8 (100%) |
+| Falhas do Revisor (erro, JSON inválido, tempo) | 0 |
+| Tokens da rodada | 17.493 |
+
+Todos os defeitos foram apontados no critério esperado: número e taxa inventados em fundamentação, parte ignorada em cobertura, vazamento em segurança, procedimento específico tratado como universal em limitações. Limite: 13 casos com defeitos explícitos, e o juiz usa o mesmo modelo do Roteador (`gpt-6-luna`). Defeitos sutis pedem um conjunto maior, rotulado à parte.
+
 O relatório (`reports/review-<data>.md` e `.json`) traz a matriz por defeito e o veredito de cada caso. Limites: 13 casos rotulados pelo autor; juiz e Roteador podem ser o mesmo modelo, e a calibração existe justamente para medir esse viés. O modelo do Revisor é configurável no agente, se a calibração pedir outro.

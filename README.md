@@ -34,7 +34,7 @@ A primeira entrega recebeu nota 8,9. A devolutiva apontou três lacunas: faltava
 | Sem crítico com replanejamento | Agente **Revisor**: julga cada resposta com evidência (fundamentação, cobertura, limitações, segurança) e pode pedir uma nova rodada ao Roteador. O cliente só lê a resposta aprovada ou a refeita. | Seções 5 e 10; tela "Curadoria" |
 | Atendimento humano terminava em ticket | **Área do atendente** (`/atendente`): fila de protocolos, assumir (atômico), conversar com o cliente no mesmo chat, notas internas, encerrar e devolver ao Roteador com o histórico | Seção 6 |
 | O agente não oferecia ajuda humana | Sem evidência, sem solução ou em assunto sensível, o agente **oferece** o atendente; o cliente decide | Seção 1 |
-| Avaliação semântica fraca | Notas do Revisor por caso no `run_eval` e **calibração do juiz** com 13 respostas rotuladas | Seção 12 |
+| Avaliação semântica fraca | Notas do Revisor por caso no `run_eval` e **calibração do juiz** com a OpenAI real: 8 de 8 defeitos detectados e 5 de 5 respostas corretas aprovadas | Seção 17 |
 | Sem métricas de retrieval | **Recall@K, MRR e nDCG** em 34 consultas rotuladas, comparando busca vetorial, textual e híbrida: o híbrido de produção tem MRR 0,92 e Recall@3 0,91 | Seção 17 |
 
 O detalhe de cada item, os testes novos e o que ainda falta estão em [docs/novidades-versao-2.md](docs/novidades-versao-2.md). As especificações de cada mudança estão em `openspec/` (seção 18).
@@ -460,6 +460,20 @@ Rodada observada em 03/11/2026, via `POST /api/v1/chat` com a API real da OpenAI
 | "Minha maquininha está sem internet" | `200` em 25 s. Cooperação Roteador → Atendimento (`get_terminal_status`) → Especialista (`search_knowledge`), com o procedimento do chip Algar citado. |
 
 Tokens por execução: entre cerca de 4,6 mil e 16,7 mil (a execução do terminal somou 16.712, com 38 eventos e `cost_usd` nulo por não haver preço de `gpt-6-luna`). Esses números são de uma rodada, não uma garantia; não incluem os tokens da consulta de embedding nem da chamada de busca web. Os outros seis cenários do enunciado não fazem parte desta rodada; os resultados da avaliação automatizada estão em [docs/avaliacao.md](docs/avaliacao.md).
+
+### Calibração do Revisor, 26/11/2026
+
+`python -m evaluation.calibrate_review --real` com a OpenAI real: o Revisor julgou as 13 respostas rotuladas de `review_v1` (5 corretas e 8 com defeito proposital: número inventado, citação que não sustenta, citação inexistente, parte da pergunta ignorada, limitação omitida, vazamento de instruções).
+
+| Medida | Resultado |
+|---|---|
+| Defeitos detectados (recall de `revisar`) | 8 de 8 (100%) |
+| Respostas corretas aprovadas (especificidade) | 5 de 5 (100%) |
+| Defeito apontado no critério certo | 8 de 8 (100%) |
+| Falhas do Revisor (erro, JSON inválido, tempo) | 0 |
+| Tokens da rodada | 17.493 |
+
+Limite: 13 casos com defeitos explícitos, e o juiz usa o mesmo modelo do Roteador (`gpt-6-luna`). Defeitos sutis pedem um conjunto maior, rotulado à parte.
 
 ### Recuperação (busca na base), 25/11/2026
 
